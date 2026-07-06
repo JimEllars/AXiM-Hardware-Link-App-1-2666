@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { getRows } from '../lib/googleSheets';
+import { aximCoreClient } from '../lib/supabaseClient';
 import { format } from 'date-fns';
 
 export function GlobalAuditLog() {
@@ -10,19 +10,27 @@ export function GlobalAuditLog() {
 
   useEffect(() => {
     const fetchAllLogs = async () => {
-      const [telemetry, commands, incidents] = await Promise.all([
-        getRows('TelemetryStream!A2:H'),
-        getRows('CommandQueue!A2:F'),
-        getRows('IncidentReports!A2:F')
-      ]);
+      try {
+        const [telemetryRes, commandsRes, incidentsRes] = await Promise.all([
+          aximCoreClient.from('telemetry_stream').select('id, device_id, cpu, temp, created_at').order('created_at', { ascending: false }).limit(50),
+          aximCoreClient.from('command_queue').select('id, device_id, command, created_at').order('created_at', { ascending: false }).limit(50),
+          aximCoreClient.from('incident_reports').select('id, severity, message, created_at').order('created_at', { ascending: false }).limit(50)
+        ]);
 
-      const combined = [
-        ...telemetry.map(r => ({ id: r[0], type: 'TELEMETRY', msg: `Node ${r[1]} pulse: CPU ${r[5]}% TEMP ${r[6]}C`, ts: r[7], color: 'text-cyan-500' })),
-        ...commands.map(r => ({ id: r[0], type: 'COMMAND', msg: `Node ${r[1]} executed: ${r[2]}`, ts: r[4], color: 'text-amber-500' })),
-        ...incidents.map(r => ({ id: r[0], type: 'INCIDENT', msg: `[${r[3]}] ${r[4]}`, ts: r[5], color: 'text-rose-500' }))
-      ].sort((a, b) => new Date(b.ts) - new Date(a.ts));
+        const telemetry = telemetryRes.data || [];
+        const commands = commandsRes.data || [];
+        const incidents = incidentsRes.data || [];
 
-      setLogs(combined.slice(0, 100));
+        const combined = [
+          ...telemetry.map(r => ({ id: r.id, type: 'TELEMETRY', msg: `Node ${r.device_id} pulse: CPU ${r.cpu}% TEMP ${r.temp}C`, ts: r.created_at, color: 'text-cyan-500' })),
+          ...commands.map(r => ({ id: r.id, type: 'COMMAND', msg: `Node ${r.device_id} executed: ${r.command}`, ts: r.created_at, color: 'text-amber-500' })),
+          ...incidents.map(r => ({ id: r.id, type: 'INCIDENT', msg: `[${r.severity}] ${r.message}`, ts: r.created_at, color: 'text-rose-500' }))
+        ].sort((a, b) => new Date(b.ts) - new Date(a.ts));
+
+        setLogs(combined.slice(0, 100));
+      } catch (err) {
+        console.error("Error fetching logs:", err);
+      }
     };
     fetchAllLogs();
   }, []);
