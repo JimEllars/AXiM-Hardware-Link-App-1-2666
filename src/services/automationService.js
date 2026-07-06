@@ -1,46 +1,54 @@
-import { ensureTab, getRows, appendRow, updateRow, deleteRow, findRowIndexById } from '../lib/googleSheets';
-
-const TAB = 'AutomationRules';
-const HEADERS = ['id', 'name', 'trigger_type', 'threshold', 'action_string', 'status', 'created_at'];
-
-export async function initAutomationDB() {
-  await ensureTab(TAB, HEADERS);
-}
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export async function getRules() {
-  await initAutomationDB();
-  const rows = await getRows(`${TAB}!A2:G`);
-  return rows.map(r => ({
-    id: r[0],
-    name: r[1],
-    triggerType: r[2],
-    threshold: r[3],
-    action: r[4],
-    status: r[5],
-    createdAt: r[6]
+  const { data, error } = await aximCoreClient
+    .from('automation_rules')
+    .select('id, name, trigger_type, threshold, action_string, status, created_at');
+
+  if (error) {
+    console.error('Error fetching automation rules:', error);
+    return [];
+  }
+
+  return (data || []).map(r => ({
+    id: r.id,
+    name: r.name,
+    triggerType: r.trigger_type,
+    threshold: r.threshold,
+    action: r.action_string,
+    status: r.status,
+    createdAt: r.created_at
   }));
 }
 
 export async function addRule(data) {
-  await initAutomationDB();
-  const row = [
-    crypto.randomUUID(),
-    data.name,
-    data.triggerType,
-    data.threshold,
-    data.action,
-    'ACTIVE',
-    new Date().toISOString()
-  ];
-  await appendRow(`${TAB}!A:G`, row);
+  const { error } = await aximCoreClient
+    .from('automation_rules')
+    .insert([{
+      name: data.name,
+      trigger_type: data.triggerType,
+      threshold: data.threshold,
+      action_string: data.action,
+      status: 'ACTIVE',
+      created_at: new Date().toISOString()
+    }]);
+
+  if (error) {
+    console.error('Error adding automation rule:', error);
+    throw error;
+  }
 }
 
 export async function toggleRule(id, currentStatus) {
-  const idx = await findRowIndexById(TAB, id);
-  if (idx > 0) {
-    const rows = await getRows(`${TAB}!A${idx}:G${idx}`);
-    const row = rows[0];
-    row[5] = currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-    await updateRow(`${TAB}!A${idx}:G${idx}`, row);
+  const { error } = await aximCoreClient
+    .from('automation_rules')
+    .update({
+      status: currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error toggling automation rule:', error);
+    throw error;
   }
 }
