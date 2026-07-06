@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getFleet, registerDevice, updateDeviceName } from '../services/hardwareService';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function FleetManager({ onSelectNode, selectedId }) {
   const [fleet, setFleet] = useState([]);
@@ -28,8 +29,36 @@ export function FleetManager({ onSelectNode, selectedId }) {
 
   useEffect(() => {
     refreshFleet();
-    const interval = setInterval(refreshFleet, 30000);
-    return () => clearInterval(interval);
+
+    // REALTIME LOGIC: Subscribe to any changes on the hardware_registry table
+    const channel = aximCoreClient
+      .channel('fleet_registry')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'hardware_registry'
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setFleet(prev => {
+              // Ensure we don't duplicate if we already fetched it
+              if (prev.find(n => n.id === payload.new.id)) return prev;
+              return [...prev, payload.new];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setFleet(prev => prev.map(node => node.id === payload.new.id ? payload.new : node));
+          } else if (payload.eventType === 'DELETE') {
+            setFleet(prev => prev.filter(node => node.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, []);
 
   const handleEdit = (node) => {
@@ -41,7 +70,8 @@ export function FleetManager({ onSelectNode, selectedId }) {
     setLoading(true);
     await updateDeviceName(id, editName);
     setEditingId(null);
-    await refreshFleet();
+    setLoading(false);
+    // Realtime subscription will handle the update in state
   };
 
   return (
