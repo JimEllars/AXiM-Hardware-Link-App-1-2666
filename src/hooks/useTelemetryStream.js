@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { logTelemetry, logIncident } from '../services/hardwareService';
+import { logIncident } from '../services/hardwareService';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function useTelemetryStream(deviceId) {
   const [telemetry, setTelemetry] = useState({
@@ -11,68 +12,71 @@ export function useTelemetryStream(deviceId) {
     history: []
   });
 
-  const telemetryRef = useRef(telemetry);
-  telemetryRef.current = telemetry;
-  
-  // Track active alerts to prevent duplicate database logging
   const activeAlerts = useRef(new Set());
 
   useEffect(() => {
+    if (!deviceId) return;
+
     const historyLength = 20;
-    const interval = setInterval(() => {
-      setTelemetry(prev => {
-        const newBattery = Math.max(0, prev.battery - (Math.random() > 0.9 ? 1 : 0));
-        const newSignal = -40 - Math.floor(Math.random() * 30);
-        const newPing = 20 + Math.floor(Math.random() * 80) + (Math.random() > 0.95 ? 200 : 0);
-        const newCpu = Math.min(100, Math.max(10, prev.cpuLoad + (Math.random() * 20 - 10)));
-        const newTemp = Math.min(120, Math.max(40, prev.temp + (Math.random() * 4 - 2)));
-        
-        const now = new Date().toLocaleTimeString('en-US', { hour12: false, second: '2-digit', minute: '2-digit', hour: '2-digit' });
-        const newPoint = { time: now, cpu: newCpu.toFixed(1), temp: newTemp.toFixed(1) };
-        const newHistory = [...prev.history, newPoint].slice(-historyLength);
 
-        // Check for Incident Triggers
-        if (newBattery < 10 && !activeAlerts.current.has('LOW_BATT')) {
-          logIncident(deviceId, { type: 'POWER_FAILURE', severity: 'CRITICAL', message: 'Battery level reached critical threshold (<10%)' });
-          activeAlerts.current.add('LOW_BATT');
-        } else if (newBattery >= 10) {
-          activeAlerts.current.delete('LOW_BATT');
-        }
+    // AXiM Core Realtime Telemetry Architecture:
+    // We subscribe to a specific broadcast channel unique to the deviceId.
+    // The Core macro-ecosystem broadcasts real-time hardware vitals via this channel.
+    const channel = aximCoreClient.channel(`axim_core_telemetry:${deviceId}`);
 
-        if (newTemp > 90 && !activeAlerts.current.has('HIGH_TEMP')) {
-          logIncident(deviceId, { type: 'THERMAL_BREACH', severity: 'CRITICAL', message: 'Core temperature exceeded safe operating limit (>90C)' });
-          activeAlerts.current.add('HIGH_TEMP');
-        } else if (newTemp <= 90) {
-          activeAlerts.current.delete('HIGH_TEMP');
-        }
+    channel.on(
+      'broadcast',
+      { event: 'telemetry_update' },
+      (payload) => {
+        const data = payload.payload;
 
-        return {
-          battery: newBattery,
-          signal: newSignal,
-          ping: newPing,
-          cpuLoad: newCpu,
-          temp: newTemp,
-          history: newHistory
-        };
-      });
-    }, 1000);
+        setTelemetry(prev => {
+          const now = new Date().toLocaleTimeString('en-US', { hour12: false, second: '2-digit', minute: '2-digit', hour: '2-digit' });
+          const newPoint = {
+            time: now,
+            cpu: Number(data.cpu).toFixed(1),
+            temp: Number(data.temp).toFixed(1)
+          };
+          const newHistory = [...prev.history, newPoint].slice(-historyLength);
 
-    return () => clearInterval(interval);
-  }, [deviceId]);
+          const newBattery = Number(data.battery);
+          const newTemp = Number(data.temp);
 
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      const current = telemetryRef.current;
-      logTelemetry(deviceId, {
-        battery: current.battery,
-        signal: current.signal,
-        ping: current.ping,
-        cpu: current.cpuLoad,
-        temp: current.temp
-      }).catch(err => console.warn('Sync Failed:', err));
-    }, 15000);
+          // Check for Incident Triggers locally to reduce Core load for incident processing
+          if (newBattery < 10 && !activeAlerts.current.has('LOW_BATT')) {
+            logIncident(deviceId, { type: 'POWER_FAILURE', severity: 'CRITICAL', message: 'Battery level reached critical threshold (<10%)' });
+            activeAlerts.current.add('LOW_BATT');
+          } else if (newBattery >= 10) {
+            activeAlerts.current.delete('LOW_BATT');
+          }
 
-    return () => clearInterval(syncInterval);
+          if (newTemp > 90 && !activeAlerts.current.has('HIGH_TEMP')) {
+            logIncident(deviceId, { type: 'THERMAL_BREACH', severity: 'CRITICAL', message: 'Core temperature exceeded safe operating limit (>90C)' });
+            activeAlerts.current.add('HIGH_TEMP');
+          } else if (newTemp <= 90) {
+            activeAlerts.current.delete('HIGH_TEMP');
+          }
+
+          return {
+            battery: newBattery,
+            signal: Number(data.signal),
+            ping: Number(data.ping),
+            cpuLoad: Number(data.cpu),
+            temp: newTemp,
+            history: newHistory
+          };
+        });
+      }
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log(`Subscribed to telemetry stream for ${deviceId}`);
+      }
+    });
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, [deviceId]);
 
   return telemetry;

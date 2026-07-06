@@ -3,7 +3,38 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { sendCommand, getCommandHistory } from '../services/hardwareService';
 
+// Mock hook for checking user roles before allowing access.
+// Prepares for Cloudflare Zero Trust tunnel integration.
+function useAdminValidation() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulating JWT decode / role validation against AXiM Core identities
+    const checkRole = async () => {
+      try {
+        // Here we would decode a JWT or check the Cloudflare Access headers.
+        // For phase 1, we assume success to not block current devs,
+        // but establish the validation lifecycle.
+        // In reality, this should check for the "axim_internal_admin" role.
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setIsAdmin(true);
+      } catch (err) {
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkRole();
+  }, []);
+
+  return { isAdmin, loading };
+}
+
 export function OverrideTerminal({ deviceId }) {
+  const { isAdmin, loading: authLoading } = useAdminValidation();
+
   const [logs, setLogs] = useState([
     { id: 'init-1', text: `AXiM_CORE SECURE SHELL v2.4`, type: 'info' },
     { id: 'init-2', text: `Connected to Hardware Node: ${deviceId}`, type: 'success' }
@@ -17,7 +48,7 @@ export function OverrideTerminal({ deviceId }) {
     endOfLogsRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  // Command status polling
+  // Command status polling (routed over standard HTTPS now via Supabase REST)
   useEffect(() => {
     if (pendingCmds.size === 0) return;
 
@@ -74,6 +105,23 @@ export function OverrideTerminal({ deviceId }) {
       setIsProcessing(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="cyber-panel p-4 w-96 h-64 flex flex-col items-center justify-center pointer-events-auto">
+        <div className="text-cyan-500 animate-pulse font-mono text-sm">AUTHENTICATING...</div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="cyber-panel p-4 w-96 h-64 flex flex-col items-center justify-center pointer-events-auto border-red-500">
+        <div className="text-red-500 font-bold tracking-widest uppercase mb-2">ACCESS DENIED</div>
+        <div className="text-gray-400 text-xs text-center font-mono">Role "axim_internal_admin" required to access Override Terminal.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="cyber-panel p-4 w-96 h-64 flex flex-col pointer-events-auto">
