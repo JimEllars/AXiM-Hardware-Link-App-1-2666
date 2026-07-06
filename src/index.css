@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black text-cyan-500 overflow-hidden font-mono antialiased;
+  }
+}
+
+@layer utilities {
+  .cyber-panel {
+    @apply bg-black/60 border border-cyan-500/30 backdrop-blur-md shadow-[0_0_15px_rgba(6,182,212,0.15)] rounded-sm;
+  }
+  
+  .cyber-text-glow {
+    text-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+  }
+
+  .cyber-scanlines {
+    background: linear-gradient(
+      to bottom,
+      rgba(255,255,255,0),
+      rgba(255,255,255,0) 50%,
+      rgba(0,0,0,0.2) 50%,
+      rgba(0,0,0,0.2)
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+  }
+
+  .radar-sweep {
+    background: conic-gradient(from 0deg, transparent 70%, rgba(6, 182, 212, 0.8) 100%);
+    animation: sweep 4s linear infinite;
+  }
+
+  @keyframes sweep {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .blinking-dot {
+    animation: blink 1.5s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(244, 63, 94, 0.8); }
+    50% { opacity: 0.3; text-shadow: none; }
+  }
+}
+
+/* Custom Scrollbar for Terminal */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.5);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.8);
+}
