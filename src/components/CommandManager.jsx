@@ -3,6 +3,7 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getCommandHistory, sendCommand, removeCommand } from '../services/hardwareService';
 import { format } from 'date-fns';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 const MACROS = [
   { id: 'reboot', label: 'SYS_REBOOT', icon: FiIcons.FiRefreshCw, cmd: 'REBOOT --FORCE --NOW' },
@@ -30,15 +31,55 @@ export function CommandManager({ deviceId }) {
 
   useEffect(() => {
     fetchHistory();
-    const interval = setInterval(fetchHistory, 10000);
-    return () => clearInterval(interval);
+
+    // REALTIME LOGIC: Subscribe to command status updates and new commands
+    const channel = aximCoreClient
+      .channel(`command_queue_${deviceId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'command_queue',
+          filter: `device_id=eq.${deviceId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newCmd = {
+              id: payload.new.id,
+              deviceId: payload.new.device_id,
+              command: payload.new.command,
+              status: payload.new.status,
+              created_at: payload.new.created_at,
+              updated_at: payload.new.updated_at
+            };
+            setCommands(prev => {
+              if (prev.find(c => c.id === newCmd.id)) return prev;
+              return [newCmd, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setCommands(prev => prev.map(cmd => cmd.id === payload.new.id ? {
+              ...cmd,
+              status: payload.new.status,
+              updated_at: payload.new.updated_at
+            } : cmd));
+          } else if (payload.eventType === 'DELETE') {
+            setCommands(prev => prev.filter(cmd => cmd.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, [deviceId]);
 
   const handleMacro = async (macro) => {
     setExecuting(macro.id);
     try {
       await sendCommand(deviceId, macro.cmd);
-      await fetchHistory();
+      // Realtime subscription handles adding the command to state
     } catch (err) {
       alert("Macro injection failed.");
     } finally {
@@ -50,7 +91,7 @@ export function CommandManager({ deviceId }) {
     if (!confirm("Remove command record from auditing?")) return;
     try {
       await removeCommand(id);
-      await fetchHistory();
+      // Realtime subscription handles removing the command from state
     } catch (err) {
       console.error(err);
     }

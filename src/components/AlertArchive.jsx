@@ -3,6 +3,7 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getIncidents } from '../services/hardwareService';
 import { format } from 'date-fns';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function AlertArchive({ deviceId }) {
   const [incidents, setIncidents] = useState([]);
@@ -22,8 +23,34 @@ export function AlertArchive({ deviceId }) {
 
   useEffect(() => {
     fetchIncidents();
-    const interval = setInterval(fetchIncidents, 30000);
-    return () => clearInterval(interval);
+
+    // REALTIME LOGIC: Subscribe to new incident inserts for this device
+    const channel = aximCoreClient
+      .channel(`incident_reports_${deviceId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'incident_reports',
+          filter: `device_id=eq.${deviceId}`
+        },
+        (payload) => {
+          const newIncident = {
+            id: payload.new.id,
+            type: payload.new.type,
+            severity: payload.new.severity,
+            message: payload.new.message,
+            timestamp: payload.new.created_at
+          };
+          setIncidents(prev => [newIncident, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, [deviceId]);
 
   const getSeverityColor = (sev) => {

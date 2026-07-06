@@ -1,39 +1,132 @@
 import { useEffect, useRef, useState } from 'react';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 /**
- * MOCK IMPLEMENTATION OF WEBRTC PIPELINE
- * For demonstration, this hook attempts to capture the user's local webcam
- * to simulate the incoming raw hardware video feed described in the blueprint.
+ * WEBRTC PIPELINE SCAFFOLDING
+ * This hook sets up an RTCPeerConnection and uses a Supabase Realtime channel
+ * for signaling (exchanging offer, answer, and ICE candidates).
+ * It uses the local webcam as a fallback stream for development purposes.
  */
 export function useHardwareVideoStream(deviceId) {
   const videoRef = useRef(null);
   const [status, setStatus] = useState('connecting');
+  const peerConnectionRef = useRef(null);
+  const channelRef = useRef(null);
 
   useEffect(() => {
-    let stream = null;
+    let fallbackStream = null;
 
-    const initStream = async () => {
-      try {
-        setStatus('connecting');
-        // Simulating the WebRTC SDP handshake delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+    const setupWebRTC = async () => {
+      setStatus('connecting');
+
+      // 1. Scaffold RTCPeerConnection
+      const configuration = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' }, // Public STUN server for scaffolding
+        ]
+      };
+      const peerConnection = new RTCPeerConnection(configuration);
+      peerConnectionRef.current = peerConnection;
+
+      // Handle incoming ICE candidates from hardware node
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          channelRef.current?.send({
+            type: 'broadcast',
+            event: 'webrtc_candidate',
+            payload: { candidate: event.candidate }
+          });
+        }
+      };
+
+      // Handle incoming video stream from hardware node
+      peerConnection.ontrack = (event) => {
+        if (videoRef.current && event.streams[0]) {
+          videoRef.current.srcObject = event.streams[0];
           setStatus('connected');
         }
+      };
+
+      // 2. Set up dedicated Supabase Realtime channel for signaling
+      const channel = aximCoreClient.channel(`webrtc_signaling:${deviceId}`);
+      channelRef.current = channel;
+
+      channel
+        .on('broadcast', { event: 'webrtc_offer' }, async (payload) => {
+          try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            channel.send({
+              type: 'broadcast',
+              event: 'webrtc_answer',
+              payload: { answer }
+            });
+          } catch (err) {
+            console.error('Error handling WebRTC offer:', err);
+          }
+        })
+        .on('broadcast', { event: 'webrtc_answer' }, async (payload) => {
+          try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+          } catch (err) {
+            console.error('Error handling WebRTC answer:', err);
+          }
+        })
+        .on('broadcast', { event: 'webrtc_candidate' }, async (payload) => {
+          try {
+            if (payload.candidate) {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            }
+          } catch (err) {
+            console.error('Error adding ICE candidate:', err);
+          }
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`Subscribed to WebRTC signaling channel for ${deviceId}`);
+            // To initiate the call from the dashboard, you would create an offer here,
+            // but usually the hardware node initiates or vice versa depending on architecture.
+            // For now, we are ready to receive an offer.
+          }
+        });
+
+      // 3. Fallback Stream for Development
+      try {
+        // Simulating the WebRTC SDP handshake delay for the fallback
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        // Only set the fallback if the WebRTC stream hasn't connected yet
+        if (videoRef.current && peerConnection.connectionState !== 'connected') {
+          videoRef.current.srcObject = fallbackStream;
+          setStatus('connected (fallback)');
+        }
+
+        // Add fallback tracks to the peer connection so they can be sent if needed
+        fallbackStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, fallbackStream);
+        });
+
       } catch (err) {
-        console.warn('Simulated WebRTC stream failed (Webcam access denied or unavailable).', err);
-        setStatus('error');
+        console.warn('Simulated WebRTC stream fallback failed (Webcam access denied or unavailable).', err);
+        if (status === 'connecting') {
+           setStatus('error (fallback unavailable)');
+        }
       }
     };
 
-    initStream();
+    setupWebRTC();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (fallbackStream) {
+        fallbackStream.getTracks().forEach(track => track.stop());
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
+      if (channelRef.current) {
+        aximCoreClient.removeChannel(channelRef.current);
       }
     };
   }, [deviceId]);
