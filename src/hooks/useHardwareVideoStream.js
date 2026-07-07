@@ -20,11 +20,16 @@ export function useHardwareVideoStream(deviceId) {
       setStatus('connecting');
 
       // 1. Scaffold RTCPeerConnection
-      const configuration = {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' }, // Public STUN server for scaffolding
-        ]
-      };
+      let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+      try {
+        if (import.meta.env.VITE_WEBRTC_ICE_SERVERS) {
+          iceServers = JSON.parse(import.meta.env.VITE_WEBRTC_ICE_SERVERS);
+        }
+      } catch (e) {
+        console.error("Failed to parse VITE_WEBRTC_ICE_SERVERS, falling back to default.", e);
+      }
+
+      const configuration = { iceServers };
       const peerConnection = new RTCPeerConnection(configuration);
       peerConnectionRef.current = peerConnection;
 
