@@ -3,7 +3,6 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getFleet, getIncidents } from '../services/hardwareService';
 import ReactECharts from 'echarts-for-react';
-import { aximCoreClient } from '../lib/supabaseClient';
 
 export function MissionControl() {
   const [stats, setStats] = useState({
@@ -27,29 +26,6 @@ export function MissionControl() {
       });
     };
     fetchGlobalStats();
-
-    const hardwareChannel = aximCoreClient
-      .channel('mc_hardware_registry')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'hardware_registry' },
-        () => fetchGlobalStats()
-      )
-      .subscribe();
-
-    const incidentChannel = aximCoreClient
-      .channel('mc_incident_reports')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'incident_reports' },
-        () => fetchGlobalStats()
-      )
-      .subscribe();
-
-    return () => {
-      aximCoreClient.removeChannel(hardwareChannel);
-      aximCoreClient.removeChannel(incidentChannel);
-    };
   }, []);
 
   const chartOption = {
