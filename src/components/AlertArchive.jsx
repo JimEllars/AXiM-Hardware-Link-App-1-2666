@@ -55,7 +55,7 @@ export function AlertArchive({ deviceId }) {
 
   const getSeverityColor = (sev, type) => {
     if (sev === 'AUTONOMOUS_INTERVENTION' || type === 'ONYX_OVERRIDE') {
-      return 'text-fuchsia-500 border-fuchsia-500/50 bg-fuchsia-500/20 animate-pulse';
+      return 'text-fuchsia-500 border-fuchsia-500/50 bg-fuchsia-500/10 animate-pulse';
     }
     switch (sev) {
       case 'CRITICAL': return 'text-rose-500 border-rose-500/30 bg-rose-500/10';
