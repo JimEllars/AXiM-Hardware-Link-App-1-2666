@@ -24,7 +24,16 @@ export function GlobalAuditLog() {
         const combined = [
           ...telemetry.map(r => ({ id: r.id, type: 'TELEMETRY', msg: `Node ${r.device_id} pulse: CPU ${r.cpu}% TEMP ${r.temp}C`, ts: r.created_at, color: 'text-cyan-500' })),
           ...commands.map(r => ({ id: r.id, type: 'COMMAND', msg: `Node ${r.device_id} executed: ${r.command}`, ts: r.created_at, color: 'text-amber-500' })),
-          ...incidents.map(r => ({ id: r.id, type: 'INCIDENT', msg: `[${r.severity}] ${r.message}`, ts: r.created_at, color: 'text-rose-500' }))
+          ...incidents.map(r => {
+            const isOnyx = r.severity === 'AUTONOMOUS_INTERVENTION' || r.type === 'ONYX_OVERRIDE';
+            return {
+              id: r.id,
+              type: isOnyx ? 'AUTONOMOUS_INTERVENTION' : 'INCIDENT',
+              msg: `[${r.severity}] ${r.message}`,
+              ts: r.created_at,
+              color: isOnyx ? 'text-fuchsia-500 animate-pulse font-black' : 'text-rose-500'
+            };
+          })
         ].sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
         setLogs(combined.slice(0, 100));

@@ -53,7 +53,10 @@ export function AlertArchive({ deviceId }) {
     };
   }, [deviceId]);
 
-  const getSeverityColor = (sev) => {
+  const getSeverityColor = (sev, type) => {
+    if (sev === 'AUTONOMOUS_INTERVENTION' || type === 'ONYX_OVERRIDE') {
+      return 'text-fuchsia-500 border-fuchsia-500/50 bg-fuchsia-500/20 animate-pulse';
+    }
     switch (sev) {
       case 'CRITICAL': return 'text-rose-500 border-rose-500/30 bg-rose-500/10';
       case 'WARNING': return 'text-amber-500 border-amber-500/30 bg-amber-500/10';
@@ -78,7 +81,7 @@ export function AlertArchive({ deviceId }) {
           <div className="text-[10px] text-gray-600 italic text-center mt-12">INCIDENT_BUFFER_CLEAR</div>
         )}
         {incidents.map((incident) => (
-          <div key={incident.id} className={`border p-2 rounded-sm text-[10px] ${getSeverityColor(incident.severity)}`}>
+          <div key={incident.id} className={`border p-2 rounded-sm text-[10px] ${getSeverityColor(incident.severity, incident.type)}`}>
             <div className="flex justify-between items-start mb-1">
               <span className="font-bold tracking-widest uppercase">{incident.type}</span>
               <span className="text-[8px] opacity-60">

@@ -3,6 +3,7 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getTelemetryHistory } from '../services/hardwareService';
 import { format } from 'date-fns';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function HistoryLog({ deviceId }) {
   const [history, setHistory] = useState([]);
@@ -22,8 +23,34 @@ export function HistoryLog({ deviceId }) {
 
   useEffect(() => {
     fetchHistory();
-    const interval = setInterval(fetchHistory, 30000);
-    return () => clearInterval(interval);
+
+    const channel = aximCoreClient
+      .channel(`history_log_${deviceId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'telemetry_stream',
+          filter: `device_id=eq.${deviceId}`
+        },
+        (payload) => {
+          const newEntry = {
+            id: payload.new.id,
+            deviceId: payload.new.device_id,
+            cpu: payload.new.cpu,
+            temp: payload.new.temp,
+            ping: payload.new.ping || 0,
+            timestamp: payload.new.created_at
+          };
+          setHistory(prev => [newEntry, ...prev].slice(0, 50));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, [deviceId]);
 
   return (

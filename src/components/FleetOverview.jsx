@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getFleet, getIncidents } from '../services/hardwareService';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function FleetOverview() {
   const [nodes, setNodes] = useState([]);
@@ -26,8 +27,30 @@ export function FleetOverview() {
     };
 
     fetchFleetData();
-    const interval = setInterval(fetchFleetData, 60000);
-    return () => clearInterval(interval);
+
+    // Subscribe to hardware registry and incident reports to keep the fleet overview in sync
+    const hardwareChannel = aximCoreClient
+      .channel('fleet_hardware_registry')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hardware_registry' },
+        () => fetchFleetData()
+      )
+      .subscribe();
+
+    const incidentChannel = aximCoreClient
+      .channel('fleet_incident_reports')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'incident_reports' },
+        () => fetchFleetData()
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(hardwareChannel);
+      aximCoreClient.removeChannel(incidentChannel);
+    };
   }, []);
 
   if (loading) return (
