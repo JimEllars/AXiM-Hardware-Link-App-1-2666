@@ -30,11 +30,18 @@ export function CommandManager({ deviceId }) {
   };
 
   useEffect(() => {
+    // Initial fetch
     fetchHistory();
 
-    const channel = aximCoreClient.channel('public:command_queue')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'command_queue', filter: `device_id=eq.${deviceId}` }, () => {
-        fetchHistory(); // Re-fetch the list when any command is added or updated (e.g. PENDING -> EXECUTED)
+    // Listen for command executions from the edge hardware
+    const channel = aximCoreClient
+      .channel(`command-updates-${deviceId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'command_queue', filter: `device_id=eq.${deviceId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setCommands(current => [payload.new, ...current]);
+        } else if (payload.eventType === 'UPDATE') {
+          setCommands(current => current.map(cmd => cmd.id === payload.new.id ? payload.new : cmd));
+        }
       })
       .subscribe();
 

@@ -28,38 +28,30 @@ export function FleetManager({ onSelectNode, selectedId }) {
   };
 
   useEffect(() => {
+    // Initial fetch
     refreshFleet();
 
-    // REALTIME LOGIC: Subscribe to any changes on the hardware_registry table
+    // Enterprise WebSocket Subscription
     const channel = aximCoreClient
-      .channel('fleet_registry')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'hardware_registry'
-        },
-        async (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setFleet(prev => {
-              // Ensure we don't duplicate if we already fetched it
-              if (prev.find(n => n.id === payload.new.id)) return prev;
-              return [...prev, payload.new];
-            });
-            // Auto-handshake for new connection
-            try {
-              await sendCommand(payload.new.id, 'INIT_HANDSHAKE --TYPE ' + payload.new.type);
-            } catch (err) {
-              console.error('Auto-handshake failed:', err);
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            setFleet(prev => prev.map(node => node.id === payload.new.id ? payload.new : node));
-          } else if (payload.eventType === 'DELETE') {
-            setFleet(prev => prev.filter(node => node.id !== payload.old.id));
+      .channel('fleet-registry-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hardware_registry' }, async (payload) => {
+
+        if (payload.eventType === 'INSERT') {
+          // 1. Instantly update UI without polling
+          setFleet(current => [payload.new, ...current]);
+
+          // 2. Trigger Auto-Handshake based on device type
+          try {
+            await sendCommand(payload.new.id, `INIT_HANDSHAKE --TYPE ${payload.new.type}`);
+            console.log(`[AXiM_CORE] Auto-handshake dispatched to new node: ${payload.new.id}`);
+          } catch (err) {
+            console.error("Handshake dispatch failed", err);
           }
         }
-      )
+        else if (payload.eventType === 'UPDATE') {
+          setFleet(current => current.map(node => node.id === payload.new.id ? payload.new : node));
+        }
+      })
       .subscribe();
 
     return () => {
