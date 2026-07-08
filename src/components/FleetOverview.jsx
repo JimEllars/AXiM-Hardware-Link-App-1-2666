@@ -2,32 +2,52 @@ import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getFleet, getIncidents } from '../services/hardwareService';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function FleetOverview() {
   const [nodes, setNodes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchFleetData = async () => {
-      try {
-        const fleet = await getFleet();
-        const nodesWithHealth = await Promise.all(fleet.map(async (node) => {
-          const incidents = await getIncidents(node.id, 5);
-          const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
-          const healthScore = Math.max(0, 100 - (criticalCount * 25));
-          return { ...node, healthScore };
-        }));
-        setNodes(nodesWithHealth);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchFleetData = async () => {
+    try {
+      const fleet = await getFleet();
+      const nodesWithHealth = await Promise.all(fleet.map(async (node) => {
+        const incidents = await getIncidents(node.id, 5);
+        const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
+        const healthScore = Math.max(0, 100 - (criticalCount * 25));
+        return { ...node, healthScore };
+      }));
+      setNodes(nodesWithHealth);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchFleetData();
-    const interval = setInterval(fetchFleetData, 60000);
-    return () => clearInterval(interval);
+
+    const channel = aximCoreClient
+      .channel('fleet_overview_registry')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'hardware_registry'
+        },
+        () => {
+          // Instead of manually calculating health scores on every single UPDATE,
+          // simply re-fetch the fleet data when the registry changes to stay perfectly in sync.
+          fetchFleetData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, []);
 
   if (loading) return (
