@@ -32,42 +32,10 @@ export function CommandManager({ deviceId }) {
   useEffect(() => {
     fetchHistory();
 
-    // REALTIME LOGIC: Subscribe to command status updates and new commands
-    const channel = aximCoreClient
-      .channel(`command_queue_${deviceId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'command_queue',
-          filter: `device_id=eq.${deviceId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newCmd = {
-              id: payload.new.id,
-              deviceId: payload.new.device_id,
-              command: payload.new.command,
-              status: payload.new.status,
-              created_at: payload.new.created_at,
-              updated_at: payload.new.updated_at
-            };
-            setCommands(prev => {
-              if (prev.find(c => c.id === newCmd.id)) return prev;
-              return [newCmd, ...prev];
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            setCommands(prev => prev.map(cmd => cmd.id === payload.new.id ? {
-              ...cmd,
-              status: payload.new.status,
-              updated_at: payload.new.updated_at
-            } : cmd));
-          } else if (payload.eventType === 'DELETE') {
-            setCommands(prev => prev.filter(cmd => cmd.id !== payload.old.id));
-          }
-        }
-      )
+    const channel = aximCoreClient.channel('public:command_queue')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'command_queue', filter: `device_id=eq.${deviceId}` }, () => {
+        fetchHistory(); // Re-fetch the list when any command is added or updated (e.g. PENDING -> EXECUTED)
+      })
       .subscribe();
 
     return () => {
