@@ -1,14 +1,17 @@
 import React from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import { useAximEcosystem } from '../hooks/useAximEcosystem';
 
 export function DiagnosticsPanel({ deviceId, telemetry }) {
+  const ecosystem = useAximEcosystem(deviceId);
   const specs = {
     firmware: "v4.2.1-stable",
     uptime: "14d 02h 11m",
     kernel: "AXiM-RTOS 0.9.4",
     load: `${telemetry.cpuLoad.toFixed(1)}%`,
-    core_temp: `${telemetry.temp.toFixed(1)}°C`
+    core_temp: `${telemetry.temp.toFixed(1)}°C`,
+    asguard_status: ecosystem.asguard.status
   };
 
   const getSubsystemStatus = (val, threshold) => val > threshold ? 'STRESSED' : 'NOMINAL';
