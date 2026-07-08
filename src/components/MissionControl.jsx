@@ -3,6 +3,7 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getFleet, getIncidents } from '../services/hardwareService';
 import ReactECharts from 'echarts-for-react';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function MissionControl() {
   const [stats, setStats] = useState({
@@ -12,8 +13,8 @@ export function MissionControl() {
     avgLatency: 0
   });
 
-  useEffect(() => {
-    const fetchGlobalStats = async () => {
+  const fetchGlobalStats = async () => {
+    try {
       const fleet = await getFleet();
       const allIncidents = await Promise.all(fleet.map(n => getIncidents(n.id, 10)));
       const flatIncidents = allIncidents.flat();
@@ -24,8 +25,29 @@ export function MissionControl() {
         criticalAlerts: flatIncidents.filter(i => i.severity === 'CRITICAL').length,
         avgLatency: 42 // Mocked global avg
       });
-    };
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
     fetchGlobalStats();
+
+    // Realtime listeners for MissionControl
+    const fleetChannel = aximCoreClient
+      .channel('mission_control_registry')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hardware_registry' }, fetchGlobalStats)
+      .subscribe();
+
+    const incidentChannel = aximCoreClient
+      .channel('mission_control_incidents')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, fetchGlobalStats)
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(fleetChannel);
+      aximCoreClient.removeChannel(incidentChannel);
+    };
   }, []);
 
   const chartOption = {
@@ -44,7 +66,7 @@ export function MissionControl() {
       axisLabel: { show: false },
       title: { show: false },
       detail: { show: false },
-      data: [{ value: (stats.online / stats.total) * 100 }]
+      data: [{ value: stats.total ? (stats.online / stats.total) * 100 : 0 }]
     }]
   };
 

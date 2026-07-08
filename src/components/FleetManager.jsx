@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { getFleet, registerDevice, updateDeviceName } from '../services/hardwareService';
+import { getFleet, registerDevice, updateDeviceName, sendCommand } from '../services/hardwareService';
 import { aximCoreClient } from '../lib/supabaseClient';
 
 export function FleetManager({ onSelectNode, selectedId }) {
@@ -40,13 +40,19 @@ export function FleetManager({ onSelectNode, selectedId }) {
           schema: 'public',
           table: 'hardware_registry'
         },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === 'INSERT') {
             setFleet(prev => {
               // Ensure we don't duplicate if we already fetched it
               if (prev.find(n => n.id === payload.new.id)) return prev;
               return [...prev, payload.new];
             });
+            // Auto-handshake for new connection
+            try {
+              await sendCommand(payload.new.id, 'INIT_HANDSHAKE --TYPE ' + payload.new.type);
+            } catch (err) {
+              console.error('Auto-handshake failed:', err);
+            }
           } else if (payload.eventType === 'UPDATE') {
             setFleet(prev => prev.map(node => node.id === payload.new.id ? payload.new : node));
           } else if (payload.eventType === 'DELETE') {
