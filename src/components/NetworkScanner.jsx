@@ -9,27 +9,19 @@ export function NetworkScanner({ deviceId }) {
   const [scanState, setScanState] = useState('IDLE'); // IDLE, AWAITING_NODE_RESPONSE
   const [results, setResults] = useState([]);
 
-    const startScan = async () => {
-    setScanning(true);
-    setScanState('AWAITING_NODE_RESPONSE');
-    setResults([]);
-    
-    try {
-      await sendCommand(deviceId, 'SCAN_RF_SPECTRUM');
-      await logAudit(deviceId, {
-        type: 'NET_SCAN',
-        target: 'LOCAL_RF_SPACE',
-        result: 'Command dispatched. Awaiting physical edge node response.',
-        severity: 'INFO'
-      });
-    } catch (err) {
-      console.error("Failed to send command to node:", err);
-      setScanning(false);
-      setScanState('IDLE');
-    }
-    // We intentionally leave it scanning / awaiting indefinitely
-    // since we do not have a physical node connected yet to respond.
-  };
+  const startScan = async () => {
+  setScanning(true);
+  setResults([]);
+  try {
+    await sendCommand(deviceId, 'SCAN_RF_SPECTRUM');
+    // Set a generic UI waiting state, as we now wait for the physical hardware to respond via telemetry/logs
+    setResults([{ ssid: 'AWAITING_NODE_RESPONSE...', mac: '--', signal: 0, sec: '--' }]);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setScanning(false);
+  }
+};
 
   return (
     <div className="cyber-panel p-4 h-full flex flex-col">
