@@ -24,28 +24,10 @@ export function AlertArchive({ deviceId }) {
   useEffect(() => {
     fetchIncidents();
 
-    // REALTIME LOGIC: Subscribe to new incident inserts for this device
-    const channel = aximCoreClient
-      .channel(`incident_reports_${deviceId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'incident_reports',
-          filter: `device_id=eq.${deviceId}`
-        },
-        (payload) => {
-          const newIncident = {
-            id: payload.new.id,
-            type: payload.new.type,
-            severity: payload.new.severity,
-            message: payload.new.message,
-            timestamp: payload.new.created_at
-          };
-          setIncidents(prev => [newIncident, ...prev]);
-        }
-      )
+    const channel = aximCoreClient.channel('public:incident_reports')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incident_reports', filter: `device_id=eq.${deviceId}` }, (payload) => {
+        setIncidents(prev => [{ id: payload.new.id, type: payload.new.type, severity: payload.new.severity, message: payload.new.message, timestamp: payload.new.created_at }, ...prev]);
+      })
       .subscribe();
 
     return () => {
@@ -54,10 +36,11 @@ export function AlertArchive({ deviceId }) {
   }, [deviceId]);
 
   const getSeverityColor = (sev, type) => {
-    if (sev === 'AUTONOMOUS_INTERVENTION' || type === 'ONYX_OVERRIDE') {
+    if (type === 'ONYX_OVERRIDE') {
       return 'text-fuchsia-500 border-fuchsia-500/50 bg-fuchsia-500/10 animate-pulse';
     }
     switch (sev) {
+      case 'AUTONOMOUS_INTERVENTION': return 'text-fuchsia-500 border-fuchsia-500/50 bg-fuchsia-500/10 animate-pulse';
       case 'CRITICAL': return 'text-rose-500 border-rose-500/30 bg-rose-500/10';
       case 'WARNING': return 'text-amber-500 border-amber-500/30 bg-amber-500/10';
       default: return 'text-cyan-500 border-cyan-500/30 bg-cyan-500/10';
