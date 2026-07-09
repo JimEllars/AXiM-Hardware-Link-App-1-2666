@@ -31,7 +31,7 @@ export function FleetManager({ onSelectNode, selectedId }) {
     // Initial fetch
     refreshFleet();
 
-    // Enterprise WebSocket Subscription
+    // Enterprise WebSocket Subscription (No Polling)
     const channel = aximCoreClient
       .channel('fleet-registry-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hardware_registry' }, async (payload) => {
