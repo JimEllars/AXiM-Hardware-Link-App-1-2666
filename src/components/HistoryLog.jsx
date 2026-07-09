@@ -24,7 +24,7 @@ export function HistoryLog({ deviceId }) {
   useEffect(() => {
     fetchHistory();
 
-    const channel = aximCoreClient.channel('public:telemetry_stream_history')
+    const channel = aximCoreClient.channel(`public:telemetry_stream_history:${deviceId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_stream', filter: `device_id=eq.${deviceId}` }, (payload) => {
         setHistory(prev => [{ id: payload.new.id, cpu: payload.new.cpu, temp: payload.new.temp, ping: payload.new.ping, timestamp: payload.new.created_at }, ...prev].slice(0, 50));
       })
