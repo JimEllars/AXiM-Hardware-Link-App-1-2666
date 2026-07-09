@@ -79,7 +79,7 @@ export function AutomationManager() {
                   </div>
                 </div>
                 <button 
-                  onClick={() => toggleRule(rule.id, rule.status)}
+                  onClick={async () => { await toggleRule(rule.id, rule.status); loadRules(); }}
                   className={`text-[8px] px-2 py-1 border ${rule.status === 'ACTIVE' ? 'border-green-500 text-green-500' : 'border-gray-700 text-gray-700'}`}
                 >
                   {rule.status}

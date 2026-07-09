@@ -21,11 +21,13 @@ import { AutomationManager } from './AutomationManager';
 import { GlobalAuditLog } from './GlobalAuditLog';
 import { useTelemetryStream } from '../hooks/useTelemetryStream';
 import { useHardwareSimulator } from '../hooks/useHardwareSimulator';
+import { getFleet } from '../services/hardwareService';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
 export function TelemetryHUDLayout() {
   const [activeDeviceId, setActiveDeviceId] = useState('DRONE_01_ALPHA');
+  const [activeDeviceType, setActiveDeviceType] = useState('UAV');
   const [showFleet, setShowFleet] = useState(false);
   const [activeTab, setActiveTab] = useState('HUD'); 
   const [wsStatus, setWsStatus] = useState('CONNECTING');
@@ -40,11 +42,30 @@ export function TelemetryHUDLayout() {
   const telemetry = useTelemetryStream(activeDeviceId);
   useHardwareSimulator(activeDeviceId);
 
+  useEffect(() => {
+    const fetchDeviceType = async () => {
+      try {
+        const fleet = await getFleet();
+        const activeNode = fleet.find(node => node.id === activeDeviceId);
+        if (activeNode) {
+          setActiveDeviceType(activeNode.type);
+        } else {
+          setActiveDeviceType('UAV');
+        }
+      } catch (err) {
+        console.error('Failed to fetch fleet for device type', err);
+      }
+    };
+    fetchDeviceType();
+  }, [activeDeviceId]);
+
   const TABS = ['HUD', 'LOGS', 'ALERTS', 'FLEET', 'CMDS', 'BATCH', 'PENTEST', 'SECURITY', 'OPS', 'CONNECT', 'TOPOLOGY', 'AUTO', 'STREAM'];
 
   return (
     <div className="relative w-screen h-screen bg-black overflow-hidden font-mono selection:bg-cyan-500/30">
-      <WebRTCVideoLayer deviceId={activeDeviceId} />
+      {!(activeDeviceType === 'ENVIRONMENTAL_SENSOR' || activeDeviceType === 'LOCAL_SERVER') && (
+        <WebRTCVideoLayer deviceId={activeDeviceId} />
+      )}
       <NotificationSystem telemetry={telemetry} />
 
       <div className="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between z-30">
@@ -82,7 +103,7 @@ export function TelemetryHUDLayout() {
 
             {!showFleet && activeTab === 'HUD' && (
               <>
-                <VitalsReadout battery={telemetry.battery} signal={telemetry.signal} ping={telemetry.ping} />
+                <VitalsReadout battery={telemetry.battery} signal={telemetry.signal} ping={telemetry.ping} deviceType={activeDeviceType} telemetry={telemetry} />
                 <DiagnosticsPanel deviceId={activeDeviceId} telemetry={telemetry} />
               </>
             )}
@@ -101,7 +122,7 @@ export function TelemetryHUDLayout() {
               <div className="text-gray-500">|</div>
               <div className="text-cyan-400">{new Date().toLocaleTimeString()}</div>
             </div>
-            {activeTab === 'HUD' && <SensorGraphs telemetryHistory={telemetry.history} />}
+            {activeTab === 'HUD' && <SensorGraphs telemetryHistory={telemetry.history} deviceType={activeDeviceType} />}
           </div>
         </div>
 
