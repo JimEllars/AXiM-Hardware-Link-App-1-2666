@@ -10,18 +10,27 @@ export function NetworkScanner({ deviceId }) {
   const [results, setResults] = useState([]);
 
   const startScan = async () => {
-  setScanning(true);
-  setResults([]);
-  try {
-    await sendCommand(deviceId, 'SCAN_RF_SPECTRUM');
-    // Set a generic UI waiting state, as we now wait for the physical hardware to respond via telemetry/logs
-    setResults([{ ssid: 'AWAITING_NODE_RESPONSE...', mac: '--', signal: 0, sec: '--' }]);
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setScanning(false);
-  }
-};
+    setScanning(true);
+    setResults([]); // Clear old results
+
+    try {
+      // Push actual scan command to hardware edge node
+      await sendCommand(deviceId, 'SCAN_RF_SPECTRUM');
+
+      await logAudit(deviceId, {
+        type: 'NET_SCAN',
+        target: 'LOCAL_RF_SPACE',
+        result: `Scan command dispatched to edge node. Awaiting hardware telemetry...`,
+        severity: 'INFO'
+      });
+
+      // Keep scanning state true until a webhook/realtime event returns results
+      // (This removes the fake data and correctly awaits real hardware interaction)
+    } catch (err) {
+      console.error("Failed to dispatch scan command:", err);
+      setScanning(false);
+    }
+  };
 
   return (
     <div className="cyber-panel p-4 h-full flex flex-col">

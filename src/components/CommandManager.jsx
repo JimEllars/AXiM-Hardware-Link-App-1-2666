@@ -33,7 +33,7 @@ export function CommandManager({ deviceId }) {
     // Initial fetch
     fetchHistory();
 
-    // Listen for command executions from the edge hardware
+    // Listen for command executions from the edge hardware via WebSockets
     const channel = aximCoreClient
       .channel(`command-updates-${deviceId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'command_queue', filter: `device_id=eq.${deviceId}` }, (payload) => {
