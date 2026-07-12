@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { format } from 'date-fns';
@@ -22,9 +24,9 @@ export function GlobalAuditLog() {
         ]);
 
         const combined = [
-          ...(telemetryData || []).map(r => ({ id: r.id, type: 'TELEMETRY', msg: `Node ${r.device_id} pulse: CPU ${r.cpu}% TEMP ${r.temp}C`, ts: r.created_at, color: 'text-cyan-500' })),
-          ...(commandData || []).map(r => ({ id: r.id, type: 'COMMAND', msg: `Node ${r.device_id} executed: ${r.command}`, ts: r.updated_at, color: 'text-amber-500' })),
-          ...(incidentData || []).map(r => ({ id: r.id, type: 'INCIDENT', msg: `[${r.severity}] ${r.message}`, ts: r.created_at, color: 'text-rose-500' }))
+          ...(telemetryData || []).map(r => ({ id: r.id, type: 'TELEMETRY', msg: \`Node \${r.device_id} pulse: CPU \${r.cpu}% TEMP \${r.temp}C\`, ts: r.created_at, color: 'text-cyan-500' })),
+          ...(commandData || []).map(r => ({ id: r.id, type: 'COMMAND', msg: \`Node \${r.device_id} executed: \${r.command}\`, ts: r.updated_at, color: 'text-amber-500' })),
+          ...(incidentData || []).map(r => ({ id: r.id, type: 'INCIDENT', msg: \`[\${r.severity}] \${r.message}\`, ts: r.created_at, color: 'text-rose-500' }))
         ].sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
         setLogs(combined.slice(0, 100));
@@ -43,10 +45,10 @@ export function GlobalAuditLog() {
         </h3>
         <div className="flex space-x-2">
           {['ALL', 'TELEMETRY', 'COMMAND', 'INCIDENT'].map(f => (
-            <button 
+            <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`text-[8px] px-2 py-0.5 border ${filter === f ? 'bg-cyan-500 text-black' : 'border-cyan-800 text-cyan-800'}`}
+              className={\`text-[8px] px-2 py-0.5 border \${filter === f ? 'bg-cyan-500 text-black' : 'border-cyan-800 text-cyan-800'}\`}
             >
               {f}
             </button>
@@ -58,7 +60,7 @@ export function GlobalAuditLog() {
         {logs.filter(l => filter === 'ALL' || l.type === filter).map(log => (
           <div key={log.id} className="flex space-x-4 border-b border-white/5 py-1 hover:bg-white/5 px-2">
              <span className="text-gray-600 w-32">{format(new Date(log.ts), 'yyyy-MM-dd HH:mm:ss')}</span>
-             <span className={`w-20 font-bold ${log.color}`}>[{log.type}]</span>
+             <span className={\`w-20 font-bold \${log.color}\`}>[{log.type}]</span>
              <span className="text-gray-300 flex-1">{log.msg}</span>
           </div>
         ))}
@@ -66,3 +68,5 @@ export function GlobalAuditLog() {
     </div>
   );
 }
+`;
+fs.writeFileSync('src/components/GlobalAuditLog.jsx', code);

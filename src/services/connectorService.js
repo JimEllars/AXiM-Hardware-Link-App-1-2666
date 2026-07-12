@@ -1,62 +1,78 @@
-import { ensureTab, getRows, appendRow, updateRow, findRowIndexById, deleteRow } from '../lib/googleSheets';
-
-const TABS = {
-  CONNECTORS: 'SystemConnectors',
-  BRIDGES: 'SystemBridges'
-};
-
-const HEADERS = {
-  CONNECTORS: ['id', 'name', 'type', 'protocol', 'endpoint', 'status', 'last_sync'],
-  BRIDGES: ['id', 'connector_id', 'device_id', 'stream_mode', 'created_at']
-};
-
-export async function initConnectorDB() {
-  await ensureTab(TABS.CONNECTORS, HEADERS.CONNECTORS);
-  await ensureTab(TABS.BRIDGES, HEADERS.BRIDGES);
-}
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export async function getConnectors() {
-  await initConnectorDB();
-  const rows = await getRows(`${TABS.CONNECTORS}!A2:G`);
-  return rows.map(r => ({
-    id: r[0],
-    name: r[1],
-    type: r[2],
-    protocol: r[3],
-    endpoint: r[4],
-    status: r[5],
-    lastSync: r[6]
+  const { data, error } = await aximCoreClient
+    .from('system_connectors')
+    .select('*');
+
+  if (error) throw error;
+
+  return data.map(r => ({
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    protocol: r.protocol,
+    endpoint: r.endpoint,
+    status: r.status,
+    lastSync: r.last_sync
   }));
 }
 
-export async function addConnector(data) {
-  await initConnectorDB();
-  const id = crypto.randomUUID();
-  const row = [id, data.name, data.type, data.protocol, data.endpoint, 'ACTIVE', new Date().toISOString()];
-  await appendRow(`${TABS.CONNECTORS}!A:G`, row);
-  return id;
+export async function addConnector(connectorData) {
+  const { data, error } = await aximCoreClient
+    .from('system_connectors')
+    .insert([{
+      name: connectorData.name,
+      type: connectorData.type,
+      protocol: connectorData.protocol,
+      endpoint: connectorData.endpoint,
+      status: 'ACTIVE',
+      last_sync: new Date().toISOString()
+    }])
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return data.id;
 }
 
 export async function getBridges() {
-  await initConnectorDB();
-  const rows = await getRows(`${TABS.BRIDGES}!A2:E`);
-  return rows.map(r => ({
-    id: r[0],
-    connectorId: r[1],
-    deviceId: r[2],
-    mode: r[3],
-    createdAt: r[4]
+  const { data, error } = await aximCoreClient
+    .from('system_bridges')
+    .select('*');
+
+  if (error) throw error;
+
+  return data.map(r => ({
+    id: r.id,
+    connectorId: r.connector_id,
+    deviceId: r.device_id,
+    mode: r.stream_mode,
+    createdAt: r.created_at
   }));
 }
 
 export async function createBridge(connectorId, deviceId) {
-  await initConnectorDB();
-  const id = crypto.randomUUID();
-  const row = [id, connectorId, deviceId, 'DUPLEX', new Date().toISOString()];
-  await appendRow(`${TABS.BRIDGES}!A:E`, row);
-  return id;
+  const { data, error } = await aximCoreClient
+    .from('system_bridges')
+    .insert([{
+      connector_id: connectorId,
+      device_id: deviceId,
+      stream_mode: 'DUPLEX',
+      created_at: new Date().toISOString()
+    }])
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return data.id;
 }
 
 export async function removeConnector(id) {
-  await deleteRow(TABS.CONNECTORS, id);
+  const { error } = await aximCoreClient
+    .from('system_connectors')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
 }

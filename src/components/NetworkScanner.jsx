@@ -22,25 +22,19 @@ export function NetworkScanner({ deviceId }) {
                   setResults(scanResults);
               }
            } catch (e) {
-              console.error("Failed to parse NET_SCAN_RESULT", e);
+              // silent catch
            }
            setScanning(false);
            setScanState('IDLE');
         }
       })
       .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to security_audits channel');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Channel error in security_audits:', err);
+        if (status === 'CHANNEL_ERROR') {
           setScanState('IDLE');
           setScanning(false);
         } else if (status === 'TIMED_OUT') {
-          console.error('Channel timeout in security_audits:', err);
           setScanState('IDLE');
           setScanning(false);
-        } else if (status === 'CLOSED') {
-          console.log('Channel closed for security_audits');
         }
       });
 
@@ -68,7 +62,6 @@ export function NetworkScanner({ deviceId }) {
       // Keep scanning state true until a webhook/realtime event returns results
       // (This removes the fake data and correctly awaits real hardware interaction)
     } catch (err) {
-      console.error("Failed to dispatch scan command:", err);
       setScanning(false);
       setScanState('IDLE');
     }

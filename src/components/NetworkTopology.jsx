@@ -138,18 +138,11 @@ export function NetworkTopology() {
         }));
       })
       .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to topology_engine channel');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Channel error in topology_engine:', err);
-        } else if (status === 'TIMED_OUT') {
-          console.error('Channel timeout in topology_engine:', err);
-        } else if (status === 'CLOSED') {
-          console.log('Channel closed for topology_engine');
+        if (status === 'CHANNEL_ERROR') {
+          void err;
         }
       });
-
-    return () => {
+return () => {
       aximCoreClient.removeChannel(topologyChannel);
     };
   }, []);
