@@ -14,7 +14,7 @@ export function NetworkScanner({ deviceId }) {
     // Prep the component to instantly inject actual results when a node returns target scanning logs
     const channel = aximCoreClient.channel(`public:security_audits:${deviceId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audits', filter: `device_id=eq.${deviceId}` }, (payload) => {
-        if (payload.new.type === 'NET_SCAN_RESULT') {
+        if (payload && payload.new && payload.new.type === 'NET_SCAN_RESULT') {
            try {
               // Parse the result array and return the state back to 'IDLE'
               const scanResults = JSON.parse(payload.new.result);
@@ -28,7 +28,21 @@ export function NetworkScanner({ deviceId }) {
            setScanState('IDLE');
         }
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Subscribed to security_audits channel');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Channel error in security_audits:', err);
+          setScanState('IDLE');
+          setScanning(false);
+        } else if (status === 'TIMED_OUT') {
+          console.error('Channel timeout in security_audits:', err);
+          setScanState('IDLE');
+          setScanning(false);
+        } else if (status === 'CLOSED') {
+          console.log('Channel closed for security_audits');
+        }
+      });
 
     return () => {
       aximCoreClient.removeChannel(channel);

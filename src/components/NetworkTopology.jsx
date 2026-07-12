@@ -65,6 +65,7 @@ export function NetworkTopology() {
     const topologyChannel = aximCoreClient
       .channel('topology_engine')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hardware_registry' }, (payload) => {
+        if (!payload || (!payload.new && !payload.old)) return;
         setGraphData(prev => {
           const newNodes = prev.nodes.map(n => {
             if (n.id === payload.new.id) {
@@ -80,6 +81,7 @@ export function NetworkTopology() {
         });
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hardware_registry' }, (payload) => {
+        if (!payload || (!payload.new && !payload.old)) return;
         setGraphData(prev => {
           const newNode = {
             id: payload.new.id, name: payload.new.name, category: 1,
@@ -89,12 +91,14 @@ export function NetworkTopology() {
         });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hardware_registry' }, (payload) => {
+        if (!payload || (!payload.new && !payload.old)) return;
         setGraphData(prev => ({
           ...prev,
           nodes: prev.nodes.filter(n => n.id !== payload.old.id)
         }));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'system_connectors' }, (payload) => {
+        if (!payload || (!payload.new && !payload.old)) return;
         setGraphData(prev => {
           const newNode = {
             id: payload.new.id, name: payload.new.name, category: 0,
@@ -109,12 +113,14 @@ export function NetworkTopology() {
         });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'system_connectors' }, (payload) => {
+        if (!payload || (!payload.new && !payload.old)) return;
         setGraphData(prev => ({
           nodes: prev.nodes.filter(n => n.id !== payload.old.id),
           links: prev.links.filter(l => l.source !== payload.old.id && l.target !== payload.old.id)
         }));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'system_bridges' }, (payload) => {
+        if (!payload || (!payload.new && !payload.old)) return;
         setGraphData(prev => {
           const newLink = {
             source: payload.new.connector_id,
@@ -125,12 +131,23 @@ export function NetworkTopology() {
         });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'system_bridges' }, (payload) => {
+        if (!payload || (!payload.new && !payload.old)) return;
         setGraphData(prev => ({
           ...prev,
           links: prev.links.filter(l => !(l.source === payload.old.connector_id && l.target === payload.old.device_id))
         }));
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Subscribed to topology_engine channel');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Channel error in topology_engine:', err);
+        } else if (status === 'TIMED_OUT') {
+          console.error('Channel timeout in topology_engine:', err);
+        } else if (status === 'CLOSED') {
+          console.log('Channel closed for topology_engine');
+        }
+      });
 
     return () => {
       aximCoreClient.removeChannel(topologyChannel);
@@ -159,7 +176,7 @@ export function NetworkTopology() {
         ECOSYSTEM_TOPOLOGY_LAYER
       </h3>
       <div className="flex-1">
-        <ReactECharts option={option} style={{ height: '100%' }} notMerge={false} lazyUpdate={true} />
+        <ReactECharts option={option} style={{ height: '100%' }} notMerge={true} lazyUpdate={true} />
       </div>
     </div>
   );
