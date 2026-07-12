@@ -3,6 +3,9 @@ import { logIncident } from '../services/hardwareService';
 import { aximCoreClient } from '../lib/supabaseClient';
 
 export function useTelemetryStream(deviceId) {
+  const [isLinkStale, setIsLinkStale] = useState(false);
+  const lastMessageTimestamp = useRef(Date.now());
+
   const [telemetry, setTelemetry] = useState({
     battery: 85,
     signal: -45,
@@ -28,6 +31,8 @@ export function useTelemetryStream(deviceId) {
       'broadcast',
       { event: 'telemetry_update' },
       (payload) => {
+        lastMessageTimestamp.current = Date.now();
+        setIsLinkStale(false);
         const data = payload.payload;
 
         setTelemetry(prev => {
@@ -74,10 +79,18 @@ export function useTelemetryStream(deviceId) {
       }
     });
 
+
+    const watchdogInterval = setInterval(() => {
+      if (Date.now() - lastMessageTimestamp.current > 5000) {
+        setIsLinkStale(true);
+      }
+    }, 2000);
+
     return () => {
+      clearInterval(watchdogInterval);
       aximCoreClient.removeChannel(channel);
     };
   }, [deviceId]);
 
-  return telemetry;
+  return { ...telemetry, isLinkStale };
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function VitalsReadout({ battery, signal, ping, deviceType, telemetry = {} }) {
+export function VitalsReadout({ battery, signal, ping, deviceType, telemetry = {}, isLinkStale }) {
   const renderUAVProfile = () => (
     <>
       <div>
@@ -90,7 +90,7 @@ export function VitalsReadout({ battery, signal, ping, deviceType, telemetry = {
       </div>
       <div className="flex justify-between items-center">
         <span className="text-gray-400 text-xs">UPLINK_SIG</span>
-        <span className="text-cyan-300 font-mono">{signal ?? '--'} dBm</span>
+        <span className={isLinkStale ? "text-rose-500 font-mono" : "text-cyan-300 font-mono"}>{signal ?? '--'} dBm</span>
       </div>
       <div className="flex justify-between items-center">
         <span className="text-gray-400 text-xs">RTT_LATENCY</span>
@@ -117,8 +117,15 @@ export function VitalsReadout({ battery, signal, ping, deviceType, telemetry = {
 
   return (
     <div className="cyber-panel p-4 w-64 pointer-events-auto">
-      <h3 className="text-cyan-400 font-bold tracking-widest mb-3 uppercase text-xs border-b border-cyan-500/30 pb-1 flex justify-between">
-        <span>SYS_VITALS</span>
+        <h3 className="text-cyan-400 font-bold tracking-widest mb-3 uppercase text-xs border-b border-cyan-500/30 pb-1 flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <span>SYS_VITALS</span>
+          {isLinkStale && (
+            <span className="text-rose-500 text-[10px] animate-pulse drop-shadow-[0_0_3px_rgba(244,63,94,0.8)]">
+              [LINK_DEGRADED]
+            </span>
+          )}
+        </div>
         <span className="text-gray-500 text-[10px]">{deviceType || 'AXiM_CORE'}</span>
       </h3>
       
