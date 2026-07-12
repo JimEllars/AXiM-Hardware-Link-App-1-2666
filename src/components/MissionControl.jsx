@@ -33,15 +33,60 @@ export function MissionControl() {
   useEffect(() => {
     fetchGlobalStats();
 
-    // Realtime listeners for MissionControl
+    // Realtime listeners for MissionControl using local state manipulation
     const fleetChannel = aximCoreClient
       .channel('mission_control_registry')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hardware_registry' }, fetchGlobalStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hardware_registry' }, (payload) => {
+        setStats(prev => {
+          let newOnline = prev.online;
+          let newTotal = prev.total;
+
+          if (payload.eventType === 'INSERT') {
+            newTotal += 1;
+            if (payload.new.status === 'ONLINE') newOnline += 1;
+          } else if (payload.eventType === 'UPDATE') {
+            if (payload.old.status !== 'ONLINE' && payload.new.status === 'ONLINE') {
+              newOnline += 1;
+            } else if (payload.old.status === 'ONLINE' && payload.new.status !== 'ONLINE') {
+              newOnline = Math.max(0, newOnline - 1);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            newTotal = Math.max(0, newTotal - 1);
+            if (payload.old.status === 'ONLINE') {
+              newOnline = Math.max(0, newOnline - 1);
+            }
+          }
+
+          return { ...prev, online: newOnline, total: newTotal };
+        });
+      })
       .subscribe();
 
     const incidentChannel = aximCoreClient
       .channel('mission_control_incidents')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, fetchGlobalStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, (payload) => {
+        setStats(prev => {
+          let newCriticalAlerts = prev.criticalAlerts;
+
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.severity === 'CRITICAL') {
+              newCriticalAlerts += 1;
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            if (payload.old.severity !== 'CRITICAL' && payload.new.severity === 'CRITICAL') {
+              newCriticalAlerts += 1;
+            } else if (payload.old.severity === 'CRITICAL' && payload.new.severity !== 'CRITICAL') {
+              newCriticalAlerts = Math.max(0, newCriticalAlerts - 1);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            if (payload.old.severity === 'CRITICAL') {
+              newCriticalAlerts = Math.max(0, newCriticalAlerts - 1);
+            }
+          }
+
+          return { ...prev, criticalAlerts: newCriticalAlerts };
+        });
+      })
       .subscribe();
 
     return () => {
@@ -128,7 +173,7 @@ export function MissionControl() {
           </div>
           
           <button 
-            onClick={() => alert("Generating Forensic Report for G_SHEETS...")}
+            onClick={() => alert("Generating Forensic Report for EXPORT...")}
             className="w-full py-4 border border-cyan-500/30 text-cyan-500 text-xs font-bold uppercase tracking-widest hover:bg-cyan-500/10 transition-all flex items-center justify-center space-x-3"
           >
             <SafeIcon icon={FiIcons.FiDownload} />
