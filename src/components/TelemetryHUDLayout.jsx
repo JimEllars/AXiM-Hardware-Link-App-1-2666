@@ -22,6 +22,7 @@ import { GlobalAuditLog } from './GlobalAuditLog';
 import { useTelemetryStream } from '../hooks/useTelemetryStream';
 import { useHardwareSimulator } from '../hooks/useHardwareSimulator';
 import { getFleet } from '../services/hardwareService';
+import { getOperatorIdentity } from '../lib/auth';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
@@ -31,6 +32,15 @@ export function TelemetryHUDLayout() {
   const [showFleet, setShowFleet] = useState(false);
   const [activeTab, setActiveTab] = useState('HUD'); 
   const [wsStatus, setWsStatus] = useState('CONNECTING');
+  const [operatorIdentity, setOperatorIdentity] = useState('LOADING...');
+
+  useEffect(() => {
+    const fetchIdentity = async () => {
+      const identity = await getOperatorIdentity();
+      setOperatorIdentity(identity);
+    };
+    fetchIdentity();
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -103,7 +113,7 @@ export function TelemetryHUDLayout() {
 
             {!showFleet && activeTab === 'HUD' && (
               <>
-                <VitalsReadout battery={telemetry.battery} signal={telemetry.signal} ping={telemetry.ping} deviceType={activeDeviceType} telemetry={telemetry} />
+                <VitalsReadout battery={telemetry.battery} signal={telemetry.signal} ping={telemetry.ping} deviceType={activeDeviceType} telemetry={telemetry} isLinkStale={telemetry.isLinkStale} />
                 <DiagnosticsPanel deviceId={activeDeviceId} telemetry={telemetry} />
               </>
             )}
@@ -119,6 +129,8 @@ export function TelemetryHUDLayout() {
                 <div className={`w-1.5 h-1.5 rounded-full mr-2 ${wsStatus === 'CONNECTED' ? 'bg-green-500 animate-pulse' : wsStatus === 'CONNECTING' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`}></div>
                 WS_UPLINK: {wsStatus}
               </div>
+              <div className="text-gray-500">|</div>
+              <div className="text-cyan-400 font-bold ml-4">OPERATOR: {operatorIdentity}</div>
               <div className="text-gray-500">|</div>
               <div className="text-cyan-400">{new Date().toLocaleTimeString()}</div>
             </div>

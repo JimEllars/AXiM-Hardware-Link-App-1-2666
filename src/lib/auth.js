@@ -29,3 +29,28 @@ export async function verifyAdminRole() {
     return false;
   }
 }
+
+/**
+ * Ingests and renders the active user context attached at the edge
+ * by Cloudflare Zero Trust protection paths.
+ */
+export async function getOperatorIdentity() {
+  try {
+    const response = await fetch('/api/auth/identity');
+
+    if (response.status === 401 || response.status === 403) {
+      console.warn("[CLOUDFLARE_EDGE_BLOCK]");
+      return 'SECURE_DEV_NODE';
+    }
+
+    if (!response.ok) {
+        return 'SECURE_DEV_NODE';
+    }
+
+    const data = await response.json();
+    return data.identity || 'SECURE_DEV_NODE';
+  } catch (error) {
+    console.error("Error fetching operator identity:", error);
+    return 'SECURE_DEV_NODE';
+  }
+}
