@@ -6,8 +6,6 @@ import { aximCoreClient } from '../lib/supabaseClient';
 
 export function NetworkTopology() {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
-  // Add a ref to ECharts instance if necessary, but updating state for ReactECharts
-  // with a new reference of graphData (using e.g. nodes: [...nodes]) will cause ECharts to update.
 
   useEffect(() => {
     const buildGraph = async () => {
@@ -16,13 +14,13 @@ export function NetworkTopology() {
       ]);
 
       const cloudflareNode = {
-        id: 'cloudflare-edge', name: 'Cloudflare Pages Edge', category: 2,
-        symbolSize: 50, itemStyle: { color: '#f38020' }
+        id: 'cloudflare_pages_edge', name: 'CLOUDFLARE_PAGES_EDGE', category: 2,
+        symbolSize: 45, itemStyle: { color: '#f38020' }
       };
 
       const coreNode = {
-        id: 'axim-core', name: 'AXiM Core Cluster', category: 3,
-        symbolSize: 60, itemStyle: { color: '#8b5cf6' }
+        id: 'axim_core_cluster', name: 'AXiM_CORE_BACKEND', category: 3,
+        symbolSize: 50, itemStyle: { color: '#8b5cf6' }
       };
 
       const nodes = [
@@ -40,13 +38,13 @@ export function NetworkTopology() {
 
       const coreLinks = connectors.map(c => ({
         source: c.id,
-        target: 'axim-core',
+        target: 'axim_core_cluster',
         lineStyle: { width: 3, curveness: 0.1, color: '#8b5cf6', opacity: 0.6 }
       }));
 
       const edgeLink = {
-        source: 'axim-core',
-        target: 'cloudflare-edge',
+        source: 'axim_core_cluster',
+        target: 'cloudflare_pages_edge',
         lineStyle: { width: 4, curveness: 0.1, color: '#f38020', opacity: 0.8, type: 'dashed' }
       };
 
@@ -64,8 +62,8 @@ export function NetworkTopology() {
     };
     buildGraph();
 
-    const hardwareChannel = aximCoreClient
-      .channel('topology_hardware')
+    const topologyChannel = aximCoreClient
+      .channel('topology_engine')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hardware_registry' }, (payload) => {
         setGraphData(prev => {
           const newNodes = prev.nodes.map(n => {
@@ -96,10 +94,6 @@ export function NetworkTopology() {
           nodes: prev.nodes.filter(n => n.id !== payload.old.id)
         }));
       })
-      .subscribe();
-
-    const connectorsChannel = aximCoreClient
-      .channel('topology_connectors')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'system_connectors' }, (payload) => {
         setGraphData(prev => {
           const newNode = {
@@ -108,7 +102,7 @@ export function NetworkTopology() {
           };
           const newLink = {
             source: payload.new.id,
-            target: 'axim-core',
+            target: 'axim_core_cluster',
             lineStyle: { width: 3, curveness: 0.1, color: '#8b5cf6', opacity: 0.6 }
           };
           return { nodes: [...prev.nodes, newNode], links: [...prev.links, newLink] };
@@ -120,10 +114,6 @@ export function NetworkTopology() {
           links: prev.links.filter(l => l.source !== payload.old.id && l.target !== payload.old.id)
         }));
       })
-      .subscribe();
-
-    const bridgesChannel = aximCoreClient
-      .channel('topology_bridges')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'system_bridges' }, (payload) => {
         setGraphData(prev => {
           const newLink = {
@@ -143,9 +133,7 @@ export function NetworkTopology() {
       .subscribe();
 
     return () => {
-      aximCoreClient.removeChannel(hardwareChannel);
-      aximCoreClient.removeChannel(connectorsChannel);
-      aximCoreClient.removeChannel(bridgesChannel);
+      aximCoreClient.removeChannel(topologyChannel);
     };
   }, []);
 
