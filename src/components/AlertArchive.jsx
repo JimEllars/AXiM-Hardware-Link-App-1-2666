@@ -24,7 +24,7 @@ export function AlertArchive({ deviceId }) {
   useEffect(() => {
     fetchIncidents();
 
-    const channel = aximCoreClient.channel('public:incident_reports')
+    const channel = aximCoreClient.channel(`public:incident_reports:${deviceId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incident_reports', filter: `device_id=eq.${deviceId}` }, (payload) => {
         setIncidents(prev => [{ id: payload.new.id, type: payload.new.type, severity: payload.new.severity, message: payload.new.message, timestamp: payload.new.created_at }, ...prev]);
       })

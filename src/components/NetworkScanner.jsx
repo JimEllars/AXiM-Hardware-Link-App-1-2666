@@ -1,16 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { logAudit } from '../services/pentestService';
 import { sendCommand } from '../services/hardwareService';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function NetworkScanner({ deviceId }) {
   const [scanning, setScanning] = useState(false);
   const [scanState, setScanState] = useState('IDLE'); // IDLE, AWAITING_NODE_RESPONSE
   const [results, setResults] = useState([]);
 
+  useEffect(() => {
+    // Prep the component to instantly inject actual results when a node returns target scanning logs
+    const channel = aximCoreClient.channel(`public:security_audits:${deviceId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audits', filter: `device_id=eq.${deviceId}` }, (payload) => {
+        if (payload.new.type === 'NET_SCAN_RESULT') {
+           try {
+              // Parse the result array and return the state back to 'IDLE'
+              const scanResults = JSON.parse(payload.new.result);
+              if (Array.isArray(scanResults)) {
+                  setResults(scanResults);
+              }
+           } catch (e) {
+              console.error("Failed to parse NET_SCAN_RESULT", e);
+           }
+           setScanning(false);
+           setScanState('IDLE');
+        }
+      })
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
+  }, [deviceId]);
+
   const startScan = async () => {
     setScanning(true);
+    setScanState('AWAITING_NODE_RESPONSE');
     setResults([]); // Clear old results
 
     try {
@@ -29,6 +56,7 @@ export function NetworkScanner({ deviceId }) {
     } catch (err) {
       console.error("Failed to dispatch scan command:", err);
       setScanning(false);
+      setScanState('IDLE');
     }
   };
 
