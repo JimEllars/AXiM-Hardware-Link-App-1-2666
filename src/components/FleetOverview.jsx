@@ -37,10 +37,40 @@ export function FleetOverview() {
           schema: 'public',
           table: 'hardware_registry'
         },
-        () => {
-          // Instead of manually calculating health scores on every single UPDATE,
-          // simply re-fetch the fleet data when the registry changes to stay perfectly in sync.
-          fetchFleetData();
+        (payload) => {
+          setNodes(prevNodes => {
+            if (payload.eventType === 'INSERT') {
+              return [...prevNodes, { ...payload.new, healthScore: 100 }];
+            } else if (payload.eventType === 'UPDATE') {
+              return prevNodes.map(node =>
+                node.id === payload.new.id ? { ...node, ...payload.new } : node
+              );
+            } else if (payload.eventType === 'DELETE') {
+              return prevNodes.filter(node => node.id !== payload.old.id);
+            }
+            return prevNodes;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'incident_reports'
+        },
+        async (payload) => {
+          // Determine which node was affected
+          const deviceId = payload.new ? payload.new.device_id : (payload.old ? payload.old.device_id : null);
+          if (deviceId) {
+            // Recompute health score for this specific node
+            const incidents = await getIncidents(deviceId, 5);
+            const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
+            const healthScore = Math.max(0, 100 - (criticalCount * 25));
+            setNodes(prevNodes => prevNodes.map(node =>
+              node.id === deviceId ? { ...node, healthScore } : node
+            ));
+          }
         }
       )
       .subscribe();
