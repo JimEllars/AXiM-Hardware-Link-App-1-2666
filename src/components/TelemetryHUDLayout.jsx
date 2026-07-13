@@ -75,9 +75,8 @@ export function TelemetryHUDLayout() {
         <WebRTCVideoLayer deviceId={activeDeviceId} />
       )}
       <NotificationSystem telemetry={telemetry} />
-      {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_HARDWARE_SIMULATOR === 'true') && (
-        <HardwareSimulatorWrapper deviceId={activeDeviceId} />
-      )}
+
+      <HardwareSimulatorWrapper deviceId={activeDeviceId} />
 
       <div className="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between z-30">
         <div className="flex justify-between items-start">
