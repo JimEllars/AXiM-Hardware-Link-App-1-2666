@@ -26,6 +26,11 @@ import { getOperatorIdentity } from '../lib/auth';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
+function HardwareSimulatorWrapper({ deviceId }) {
+  useHardwareSimulator(deviceId);
+  return null;
+}
+
 export function TelemetryHUDLayout() {
   const [activeDeviceId, setActiveDeviceId] = useState('DRONE_01_ALPHA');
   const [activeDeviceType, setActiveDeviceType] = useState('UAV');
@@ -42,7 +47,6 @@ export function TelemetryHUDLayout() {
   }, []);
   
   const telemetry = useTelemetryStream(activeDeviceId);
-  useHardwareSimulator(activeDeviceId);
 
   const wsStatus = telemetry.wsStatus || 'CONNECTING';
 
@@ -71,6 +75,9 @@ export function TelemetryHUDLayout() {
         <WebRTCVideoLayer deviceId={activeDeviceId} />
       )}
       <NotificationSystem telemetry={telemetry} />
+      {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_HARDWARE_SIMULATOR === 'true') && (
+        <HardwareSimulatorWrapper deviceId={activeDeviceId} />
+      )}
 
       <div className="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between z-30">
         <div className="flex justify-between items-start">
