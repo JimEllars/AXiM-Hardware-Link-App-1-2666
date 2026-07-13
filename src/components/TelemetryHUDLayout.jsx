@@ -31,7 +31,6 @@ export function TelemetryHUDLayout() {
   const [activeDeviceType, setActiveDeviceType] = useState('UAV');
   const [showFleet, setShowFleet] = useState(false);
   const [activeTab, setActiveTab] = useState('HUD'); 
-  const [wsStatus, setWsStatus] = useState('CONNECTING');
   const [operatorIdentity, setOperatorIdentity] = useState('LOADING...');
 
   useEffect(() => {
@@ -41,16 +40,11 @@ export function TelemetryHUDLayout() {
     };
     fetchIdentity();
   }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setWsStatus('CONNECTED');
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
   
   const telemetry = useTelemetryStream(activeDeviceId);
   useHardwareSimulator(activeDeviceId);
+
+  const wsStatus = telemetry.wsStatus || 'CONNECTING';
 
   useEffect(() => {
     const fetchDeviceType = async () => {
