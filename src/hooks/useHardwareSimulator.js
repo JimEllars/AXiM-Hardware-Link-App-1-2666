@@ -8,6 +8,11 @@ import { getCommandHistory, updateCommandStatus } from '../services/hardwareServ
  */
 export function useHardwareSimulator(deviceId) {
   useEffect(() => {
+    // Environment-Gate: Terminate if not in dev mode or explicitly enabled
+    if (!import.meta.env.DEV && import.meta.env.VITE_ENABLE_HARDWARE_SIMULATOR !== 'true') {
+      return;
+    }
+
     const simulatorInterval = setInterval(async () => {
       try {
         const commands = await getCommandHistory(deviceId, 10);
