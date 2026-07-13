@@ -6,7 +6,7 @@ export function useTelemetryStream(deviceId) {
   const [isLinkStale, setIsLinkStale] = useState(false);
   const [wsStatus, setWsStatus] = useState('CONNECTING');
   const lastMessageTimestamp = useRef(Date.now());
-  const reportedTimeout = useRef(false);
+  const hasLoggedTimeout = useRef(false);
 
   const [telemetry, setTelemetry] = useState({
     battery: 85,
@@ -37,7 +37,7 @@ export function useTelemetryStream(deviceId) {
       (payload) => {
         lastMessageTimestamp.current = Date.now();
         setIsLinkStale(false);
-        reportedTimeout.current = false;
+        hasLoggedTimeout.current = false;
 
         const data = payload?.payload || {};
 
@@ -94,16 +94,16 @@ export function useTelemetryStream(deviceId) {
       }
     });
 
-    const watchdogInterval = setInterval(() => {
+    const watchdogInterval = setInterval(async () => {
       if (Date.now() - lastMessageTimestamp.current > 5000) {
         setIsLinkStale(true);
-        if (reportedTimeout.current === false) {
-          logIncident(deviceId, {
+        if (hasLoggedTimeout.current === false) {
+          await logIncident(deviceId, {
             type: 'UPLINK_TIMEOUT',
             severity: 'WARNING',
-            message: 'Hardware heartbeats absent for more than 5000ms. Verifying route...'
+            message: 'Hardware heartbeats absent for more than 5000ms. Verifying peripheral pathways...'
           });
-          reportedTimeout.current = true;
+          hasLoggedTimeout.current = true;
         }
       }
     }, 2000);
