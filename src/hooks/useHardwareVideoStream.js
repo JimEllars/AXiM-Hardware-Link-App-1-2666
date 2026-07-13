@@ -124,14 +124,28 @@ export function useHardwareVideoStream(deviceId) {
     setupWebRTC();
 
     return () => {
+      // 1. Explicitly stop all media tracks
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
       if (fallbackStream) {
         fallbackStream.getTracks().forEach(track => track.stop());
       }
+
+      // 2. Nullify listeners and close RTCPeerConnection
       if (peerConnectionRef.current) {
+        peerConnectionRef.current.onicecandidate = null;
+        peerConnectionRef.current.ontrack = null;
         peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
       }
+
+      // 3. Tear down signaling WebSocket channel
       if (channelRef.current) {
         aximCoreClient.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
   }, [deviceId]);
