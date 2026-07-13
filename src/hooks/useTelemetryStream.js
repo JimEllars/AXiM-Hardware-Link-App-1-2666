@@ -36,6 +36,7 @@ export function useTelemetryStream(deviceId) {
       (payload) => {
         lastMessageTimestamp.current = Date.now();
         setIsLinkStale(false);
+        activeAlerts.current.delete('UPLINK_TIMEOUT');
         const data = payload?.payload || {};
 
         setTelemetry(prev => {
@@ -94,6 +95,14 @@ export function useTelemetryStream(deviceId) {
     const watchdogInterval = setInterval(() => {
       if (Date.now() - lastMessageTimestamp.current > 5000) {
         setIsLinkStale(true);
+        if (!activeAlerts.current.has('UPLINK_TIMEOUT')) {
+          logIncident(deviceId, {
+            type: 'UPLINK_TIMEOUT',
+            severity: 'WARNING',
+            message: 'Hardware heartbeats absent for more than 5000ms. Verifying route...'
+          });
+          activeAlerts.current.add('UPLINK_TIMEOUT');
+        }
       }
     }, 2000);
 
