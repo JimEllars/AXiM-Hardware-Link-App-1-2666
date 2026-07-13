@@ -92,7 +92,7 @@ export function NetworkScanner({ deviceId }) {
             AWAITING_NODE_RESPONSE...
           </div>
         )}
-        {results.map((ap, i) => (
+        {scanState !== 'AWAITING_NODE_RESPONSE' && results.map((ap, i) => (
           <div key={i} className="border border-cyan-500/10 p-2 text-[10px] bg-cyan-950/10 group hover:border-cyan-500/40">
             <div className="flex justify-between font-bold text-cyan-300">
               <span>{ap.ssid}</span>
