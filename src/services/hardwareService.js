@@ -15,20 +15,26 @@ export async function sendCommand(deviceId, command) {
   return data.id;
 }
 
-export async function sendBatchCommands(deviceIds, command) {
-  const rows = deviceIds.map(id => ({
-    device_id: id,
-    command: command,
-    status: 'PENDING'
-  }));
+export async function sendBatchCommands(deviceIds, commandString) {
+  try {
+    const payloads = deviceIds.map(id => ({
+      device_id: id,
+      command: commandString,
+      status: 'PENDING',
+      created_at: new Date().toISOString()
+    }));
 
-  const { data, error } = await aximCoreClient
-    .from('command_queue')
-    .insert(rows)
-    .select('id');
+    const { data, error } = await aximCoreClient
+      .from('command_queue')
+      .insert(payloads)
+      .select('id');
 
-  if (error) throw error;
-  return data.map(r => r.id);
+    if (error) throw error;
+
+    return data ? data.map(r => r.id) : [];
+  } catch (err) {
+    throw err;
+  }
 }
 
 export async function getCommandHistory(deviceId, limit = 50) {

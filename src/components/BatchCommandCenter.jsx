@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { sendBatchCommands, getFleet } from '../services/hardwareService';
+import { logAudit } from '../services/pentestService';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function BatchCommandCenter() {
@@ -43,7 +44,16 @@ export function BatchCommandCenter() {
 
     setStatus('sending');
     try {
-      await sendBatchCommands(Array.from(selectedNodes), command.trim());
+      const nodeArray = Array.from(selectedNodes);
+      await sendBatchCommands(nodeArray, command.trim());
+
+      // Update local audit entries
+      await Promise.all(nodeArray.map(nodeId => logAudit(nodeId, {
+        type: 'BATCH_COMMAND_DISPATCH',
+        target: nodeId,
+        result: 'SUCCESS',
+        severity: 'INFO'
+      })));
       setStatus('complete');
       setTimeout(() => setStatus('idle'), 3000);
       setCommand('');
