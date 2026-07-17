@@ -19,14 +19,29 @@ export function MissionControl() {
       const allIncidents = await Promise.all(fleet.map(n => getIncidents(n.id, 10)));
       const flatIncidents = allIncidents.flat();
       
+      const activeFleet = fleet.filter(n => n.status === 'ONLINE');
+      let avgLatency = 0;
+
+      if (activeFleet.length > 0) {
+        const { data: telemetryData, error } = await aximCoreClient
+          .from('telemetry_stream')
+          .select('ping')
+          .in('device_id', activeFleet.map(n => n.id));
+
+        if (!error && telemetryData && telemetryData.length > 0) {
+          const totalPing = telemetryData.reduce((acc, curr) => acc + (parseFloat(curr.ping) || 0), 0);
+          avgLatency = Math.round(totalPing / telemetryData.length);
+        }
+      }
+
       setStats({
-        online: fleet.filter(n => n.status === 'ONLINE').length,
+        online: activeFleet.length,
         total: fleet.length,
         criticalAlerts: flatIncidents.filter(i => i.severity === 'CRITICAL').length,
-        avgLatency: 42 // Mocked global avg
+        avgLatency
       });
     } catch (err) {
-      console.error(err);
+      // Empty catch
     }
   };
 
