@@ -74,7 +74,7 @@ export function TelemetryHUDLayout() {
       {!(activeDeviceType === 'ENVIRONMENTAL_SENSOR' || activeDeviceType === 'LOCAL_SERVER') && (
         <WebRTCVideoLayer deviceId={activeDeviceId} />
       )}
-      <NotificationSystem telemetry={telemetry} />
+      <NotificationSystem />
 
       {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_HARDWARE_SIMULATOR === 'true') && (
         <HardwareSimulatorWrapper deviceId={activeDeviceId} />
