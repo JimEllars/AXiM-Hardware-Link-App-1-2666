@@ -2,38 +2,31 @@ import React, { useState, useRef, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { sendCommand, getCommandHistory } from '../services/hardwareService';
+import { verifyAdminRole, getOperatorIdentity } from '../lib/auth.js';
+import { aximCoreClient } from '../lib/supabaseClient';
 
-// Mock hook for checking user roles before allowing access.
-// Prepares for Cloudflare Zero Trust tunnel integration.
-function useAdminValidation() {
+export function OverrideTerminal({ deviceId }) {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [operatorId, setOperatorId] = useState(null);
 
   useEffect(() => {
-    // Simulating JWT decode / role validation against AXiM Core identities
-    const checkRole = async () => {
+    const initAuth = async () => {
       try {
-        // Here we would decode a JWT or check the Cloudflare Access headers.
-        // For phase 1, we assume success to not block current devs,
-        // but establish the validation lifecycle.
-        // In reality, this should check for the "axim_internal_admin" role.
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setIsAdmin(true);
+        const roleValid = await verifyAdminRole();
+        setIsAdmin(roleValid);
+        if (roleValid) {
+          const opId = await getOperatorIdentity();
+          setOperatorId(opId);
+        }
       } catch (err) {
         setIsAdmin(false);
       } finally {
-        setLoading(false);
+        setAuthLoading(false);
       }
     };
-
-    checkRole();
+    initAuth();
   }, []);
-
-  return { isAdmin, loading };
-}
-
-export function OverrideTerminal({ deviceId }) {
-  const { isAdmin, loading: authLoading } = useAdminValidation();
 
   const [logs, setLogs] = useState([
     { id: 'init-1', text: `AXiM_CORE SECURE SHELL v2.4`, type: 'info' },
@@ -87,6 +80,34 @@ export function OverrideTerminal({ deviceId }) {
     setIsProcessing(true);
 
     try {
+      // Task 1: Enforce Pre-Flight Session Authorization Checks
+      const currentOpId = await getOperatorIdentity();
+      const hasAccess = await verifyAdminRole();
+
+      if (!hasAccess) {
+        setLogs(prev => [...prev, {
+          id: Date.now(),
+          text: `ERROR: [ACCESS_DENIED] Operator context lacks critical clearance parameters.`,
+          type: 'error'
+        }]);
+        setPendingCmds(new Set());
+        return;
+      }
+
+      // Task 2: Inject Immutable Global Auditing Records
+      const { error: auditError } = await aximCoreClient
+        .from('global_audit_logs')
+        .insert([{
+          operator_id: currentOpId,
+          device_id: deviceId,
+          command: cmdInput,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (auditError) {
+        throw new Error('Audit log insertion failed: ' + auditError.message);
+      }
+
       const cmdId = await sendCommand(deviceId, cmdInput);
       setPendingCmds(prev => new Set(prev).add(cmdId));
       
