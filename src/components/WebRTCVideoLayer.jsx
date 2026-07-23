@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useHardwareVideoStream } from '../hooks/useHardwareVideoStream';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { inspectVideoFrameWithWorkersAi } from '../services/hardwareService';
+import { inspectVideoFrameWithWorkersAi, dispatchTelemetryIngress } from '../services/hardwareService';
 
 export function WebRTCVideoLayer({ deviceId }) {
   const { videoRef, status } = useHardwareVideoStream(deviceId);
+  const lastScanDispatchTimestamp = useRef(0);
 
   const handleScan = async () => {
     if (!videoRef.current) return;
@@ -20,6 +21,22 @@ export function WebRTCVideoLayer({ deviceId }) {
         console.log('Sending frame to Workers AI Vision...');
         const result = await inspectVideoFrameWithWorkersAi(deviceId, blob);
         console.log('Vision Scan Result:', result);
+
+        if (result && result.analysis) {
+          const { anomaly_detected, description } = result.analysis;
+          const isDamageKeyword = description && /damage|smoke|anomaly|structural/i.test(description);
+
+          if (anomaly_detected === true || isDamageKeyword) {
+            const nowTime = Date.now();
+            if (nowTime - lastScanDispatchTimestamp.current >= 60000) {
+              dispatchTelemetryIngress(deviceId, {
+                alert_type: 'OPTICAL_DAMAGE_DETECTED',
+                details: result.analysis
+              }).catch(console.error);
+              lastScanDispatchTimestamp.current = nowTime;
+            }
+          }
+        }
       }
     }, 'image/png');
   };

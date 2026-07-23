@@ -160,7 +160,7 @@ export function TelemetryHUDLayout() {
             <div className="cyber-panel p-2 pointer-events-auto text-[9px] text-cyan-700 uppercase tracking-tighter">
               Telemetry_Buffer: {telemetry.history.length}/20 frames
             </div>
-            <SpatialMapOverlay />
+            <SpatialMapOverlay activeDeviceId={activeDeviceId} telemetry={telemetry} />
           </div>
         </div>
       </div>

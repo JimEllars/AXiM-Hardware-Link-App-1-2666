@@ -3,7 +3,9 @@ import { aximCoreClient } from '../lib/supabaseClient';
 export async function getConnectors() {
   const { data, error } = await aximCoreClient
     .from('system_connectors')
-    .select('*');
+    .select('*')
+    .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
+    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
 
   if (error) throw error;
 
@@ -30,7 +32,9 @@ export async function addConnector(connectorData) {
       last_sync: new Date().toISOString()
     }])
     .select('id')
-    .single();
+    .single()
+    .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
+    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
 
   if (error) throw error;
   return data.id;
@@ -39,7 +43,9 @@ export async function addConnector(connectorData) {
 export async function getBridges() {
   const { data, error } = await aximCoreClient
     .from('system_bridges')
-    .select('*');
+    .select('*')
+    .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
+    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
 
   if (error) throw error;
 
@@ -62,7 +68,9 @@ export async function createBridge(connectorId, deviceId) {
       created_at: new Date().toISOString()
     }])
     .select('id')
-    .single();
+    .single()
+    .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
+    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
 
   if (error) throw error;
   return data.id;
@@ -72,7 +80,9 @@ export async function removeConnector(id) {
   const { error } = await aximCoreClient
     .from('system_connectors')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
+    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
 
   if (error) throw error;
 }

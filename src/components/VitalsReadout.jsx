@@ -127,9 +127,30 @@ export function VitalsReadout({ battery, signal, ping, deviceType, telemetry = {
           )}
         </div>
         <span className="text-gray-500 text-[10px]">{deviceType || 'AXiM_CORE'}</span>
+
       </h3>
       
+      {/* Vitals Numeric Cards */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {/* Temp Card */}
+        <div className={`flex flex-col items-center justify-center p-2 border rounded transition-colors duration-300 ${telemetry.temp > 85 ? 'border-pink-500/80 bg-pink-950/20 text-pink-400' : 'border-cyan-500/30 bg-cyan-950/10 text-cyan-300'}`}>
+          <span className="text-[9px] text-gray-500 mb-1">TEMP</span>
+          <span className="text-xs font-mono font-bold">{telemetry.temp ?? '--'}°</span>
+        </div>
+        {/* CPU Card */}
+        <div className={`flex flex-col items-center justify-center p-2 border rounded transition-colors duration-300 ${telemetry.cpuLoad > 90 ? 'border-amber-500/80 bg-amber-950/20 text-amber-400' : 'border-cyan-500/30 bg-cyan-950/10 text-cyan-300'}`}>
+          <span className="text-[9px] text-gray-500 mb-1">CPU</span>
+          <span className="text-xs font-mono font-bold">{telemetry.cpuLoad ?? '--'}%</span>
+        </div>
+        {/* Battery Card */}
+        <div className={`flex flex-col items-center justify-center p-2 border rounded transition-colors duration-300 ${battery < 15 ? 'border-red-500/80 bg-red-950/30 text-red-400 animate-pulse' : 'border-cyan-500/30 bg-cyan-950/10 text-cyan-300'}`}>
+          <span className="text-[9px] text-gray-500 mb-1">BATT</span>
+          <span className="text-xs font-mono font-bold">{battery ?? '--'}%</span>
+        </div>
+      </div>
+
       <div className="space-y-3 text-sm">
+
         {profileContent}
       </div>
     </div>
