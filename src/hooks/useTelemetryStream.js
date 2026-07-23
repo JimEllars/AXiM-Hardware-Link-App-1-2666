@@ -7,6 +7,7 @@ export function useTelemetryStream(deviceId) {
   const [wsStatus, setWsStatus] = useState('CONNECTING');
   const lastMessageTimestamp = useRef(Date.now());
   const hasLoggedTimeout = useRef(false);
+  const lastDispatchTimestampRef = useRef(0);
 
   const [telemetry, setTelemetry] = useState({
     battery: 85,
@@ -73,11 +74,17 @@ export function useTelemetryStream(deviceId) {
           }
 
           // Ingress Intercept: Check for anomaly breach
-          if ((safeTemp > 85 || safeCpu > 90) && !activeAlerts.current.has('INGRESS_DISPATCHED')) {
-            dispatchTelemetryIngress(deviceId, { cpu: safeCpu, temp: safeTemp, battery: safeBattery, signal: safeSignal, ping: safePing }).catch(console.error);
-            activeAlerts.current.add('INGRESS_DISPATCHED');
-          } else if (safeTemp <= 85 && safeCpu <= 90) {
-            activeAlerts.current.delete('INGRESS_DISPATCHED');
+          if (safeCpu > 90 || safeTemp > 85 || safeBattery < 15) {
+            const nowTime = Date.now();
+            if (nowTime - lastDispatchTimestampRef.current >= 60000) {
+              dispatchTelemetryIngress(deviceId, {
+                alert_type: 'CRITICAL_VITAL_BREACH',
+                cpu: safeCpu,
+                temp: safeTemp,
+                battery: safeBattery
+              }).catch(console.error);
+              lastDispatchTimestampRef.current = nowTime;
+            }
           }
 
           return {
