@@ -1,6 +1,46 @@
-import React from 'react';
 
-export function SpatialMapOverlay() {
+import { useState, useEffect } from 'react';
+import { aximCoreClient } from '../lib/supabaseClient';
+
+export function SpatialMapOverlay({ activeDeviceId, telemetry }) {
+  const [activeAnomaly, setActiveAnomaly] = useState(null);
+
+  useEffect(() => {
+    // Check local telemetry for critical breaches
+    if (telemetry) {
+      if (telemetry.temp > 85) {
+        setActiveAnomaly('CRITICAL_TEMP_' + telemetry.temp + 'C');
+        return;
+      }
+      if (telemetry.cpuLoad > 90) {
+        setActiveAnomaly('CRITICAL_CPU_' + telemetry.cpuLoad + '%');
+        return;
+      }
+      if (telemetry.battery < 15) {
+        setActiveAnomaly('CRITICAL_BATTERY_' + telemetry.battery + '%');
+        return;
+      }
+    }
+    setActiveAnomaly(null);
+  }, [telemetry]);
+
+  useEffect(() => {
+    // Subscribe to ingress alerts or incidents for optical hazard flags
+    if (!activeDeviceId) return;
+    const channel = aximCoreClient.channel(`alerts:${activeDeviceId}`)
+      .on('broadcast', { event: 'telemetry_ingress' }, (payload) => {
+        if (payload?.payload?.alert_type === 'OPTICAL_DAMAGE_DETECTED') {
+          setActiveAnomaly('OPTICAL_DAMAGE_DETECTED');
+          // Auto-clear after 10 seconds for demo purposes
+          setTimeout(() => setActiveAnomaly(null), 10000);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
+  }, [activeDeviceId]);
   return (
     <div className="cyber-panel p-4 w-64 h-64 pointer-events-auto relative overflow-hidden flex flex-col">
       <h3 className="text-cyan-400 font-bold tracking-widest mb-2 uppercase text-xs border-b border-cyan-500/30 pb-1 z-10">
@@ -21,8 +61,22 @@ export function SpatialMapOverlay() {
         <div className="absolute inset-0 radar-sweep rounded-full origin-center"></div>
 
         {/* Hardware Blip */}
-        <div className="absolute top-[30%] left-[60%] w-2 h-2 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,1)] z-10">
-          <div className="absolute -inset-2 border border-rose-500 rounded-full animate-ping opacity-50"></div>
+        <div className="absolute top-[30%] left-[60%] z-10 group cursor-pointer">
+          <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(244,63,94,1)] relative ${activeAnomaly ? 'bg-pink-500' : 'bg-cyan-500'}`}>
+            {activeAnomaly && (
+              <div className="absolute -inset-2 border border-pink-500 rounded-full animate-ping opacity-80 bg-pink-500"></div>
+            )}
+            {!activeAnomaly && (
+              <div className="absolute -inset-2 border border-cyan-500 rounded-full animate-ping opacity-50"></div>
+            )}
+
+            {/* Tooltip */}
+            {activeAnomaly && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max bg-pink-950/90 border border-pink-500 text-pink-400 text-[9px] px-2 py-1 rounded">
+                [HAZARD] {activeAnomaly}
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Path Trail */}
