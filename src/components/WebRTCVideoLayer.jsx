@@ -2,9 +2,28 @@ import React from 'react';
 import { useHardwareVideoStream } from '../hooks/useHardwareVideoStream';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import { inspectVideoFrameWithWorkersAi } from '../services/hardwareService';
 
 export function WebRTCVideoLayer({ deviceId }) {
   const { videoRef, status } = useHardwareVideoStream(deviceId);
+
+  const handleScan = async () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        console.log('Sending frame to Workers AI Vision...');
+        const result = await inspectVideoFrameWithWorkersAi(deviceId, blob);
+        console.log('Vision Scan Result:', result);
+      }
+    }, 'image/png');
+  };
+
 
   return (
     <div className="absolute inset-0 z-0 bg-gray-900 flex items-center justify-center overflow-hidden">
@@ -43,10 +62,25 @@ export function WebRTCVideoLayer({ deviceId }) {
       )}
       
       {status === 'connected' && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center space-x-2 bg-rose-500/20 px-3 py-1 rounded border border-rose-500/50">
-          <div className="w-2 h-2 rounded-full bg-rose-500 blinking-dot"></div>
-          <span className="text-rose-500 text-xs font-bold tracking-widest">LIVE_FEED</span>
-        </div>
+        <>
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center space-x-2 bg-rose-500/20 px-3 py-1 rounded border border-rose-500/50">
+            <div className="w-2 h-2 rounded-full bg-rose-500 blinking-dot"></div>
+            <span className="text-rose-500 text-xs font-bold tracking-widest">LIVE_FEED</span>
+          </div>
+
+          <div className="absolute top-4 right-4 z-20">
+            <div className="text-[9px] text-cyan-400 font-mono flex items-center gap-1.5 bg-cyan-950/60 border border-cyan-900/80 px-2 py-1 rounded backdrop-blur-md mb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              WORKERS_AI_VISION: MOONDREAM-3.1 ACTIVE
+            </div>
+            <button
+              onClick={handleScan}
+              className="w-full bg-cyan-900/50 hover:bg-cyan-800/80 text-cyan-400 border border-cyan-700/50 px-3 py-1.5 rounded text-xs font-bold tracking-wider transition-colors"
+            >
+              RUN EDGE AI SCAN
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

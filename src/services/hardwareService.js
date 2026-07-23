@@ -201,3 +201,28 @@ export const dispatchTelemetryIngress = async (deviceId, diagnosticFrame) => {
     body: payload
   });
 };
+
+export async function inspectVideoFrameWithWorkersAi(deviceId, imageBlob) {
+  try {
+    const formData = new FormData();
+    formData.append('file', imageBlob, `frame_${deviceId}_${Date.now()}.png`);
+    formData.append('model', '@cf/moondream/moondream3.1-9b-a2b');
+    formData.append('prompt', 'Inspect hardware for physical damage, smoke, thermal stress, or structural alignment anomalies.');
+
+    const workerUrl = import.meta.env.VITE_WORKER_INGRESS_URL || 'https://api.axim.us.com';
+    const res = await fetch(`${workerUrl}/v1/ai/vision-inspect`, {
+      method: 'POST',
+      headers: {
+        'X-AXiM-Internal-Auth': import.meta.env.VITE_AXIM_INTERNAL_KEY || ''
+      },
+      body: formData
+    });
+
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('[WORKERS_AI] Vision frame inspection bypassed:', e);
+  }
+  return null;
+}
