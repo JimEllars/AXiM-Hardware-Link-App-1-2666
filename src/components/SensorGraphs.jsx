@@ -1,7 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 
 export function SensorGraphs({ telemetryHistory, deviceType }) {
+  const [metricsHistory, setMetricsHistory] = useState([]);
+
+  useEffect(() => {
+    if (telemetryHistory && telemetryHistory.length > 0) {
+      const latestMetric = telemetryHistory[telemetryHistory.length - 1];
+      setMetricsHistory(prev => {
+        // Prevent duplicate updates for the same timestamp if the telemetry history just refreshed without a new point
+        if (prev.length > 0 && prev[prev.length - 1].time === latestMetric.time) {
+          return prev;
+        }
+        const updated = [...prev, latestMetric];
+        return updated.length > 50 ? updated.slice(updated.length - 50) : updated;
+      });
+    }
+  }, [telemetryHistory]);
+
   const getGraphMetrics = () => {
     switch (deviceType) {
       case 'ENVIRONMENTAL_SENSOR':
@@ -11,9 +27,9 @@ export function SensorGraphs({ telemetryHistory, deviceType }) {
           y2Name: 'HUMIDITY %',
           y2Max: 100,
           s1Name: 'AIR_QUAL',
-          s1Data: telemetryHistory.map(d => d.airQuality || Math.random() * 50 + 20),
+          s1Data: metricsHistory.map(d => d.airQuality || Math.random() * 50 + 20),
           s2Name: 'HUMIDITY',
-          s2Data: telemetryHistory.map(d => d.humidity || Math.random() * 20 + 40),
+          s2Data: metricsHistory.map(d => d.humidity || Math.random() * 20 + 40),
         };
       case 'ROBOTIC_ARM':
         return {
@@ -22,9 +38,9 @@ export function SensorGraphs({ telemetryHistory, deviceType }) {
           y2Name: 'PAYLOAD kg',
           y2Max: 50,
           s1Name: 'JOINT_TORQUE',
-          s1Data: telemetryHistory.map(d => d.torque || Math.random() * 100),
+          s1Data: metricsHistory.map(d => d.torque || Math.random() * 100),
           s2Name: 'PAYLOAD_WT',
-          s2Data: telemetryHistory.map(d => d.payloadWeight || Math.random() * 20),
+          s2Data: metricsHistory.map(d => d.payloadWeight || Math.random() * 20),
         };
       case 'UAV':
       default:
@@ -34,9 +50,9 @@ export function SensorGraphs({ telemetryHistory, deviceType }) {
           y2Name: 'TEMP °C',
           y2Max: 120,
           s1Name: 'CPU_LOAD',
-          s1Data: telemetryHistory.map(d => d.cpu),
+          s1Data: metricsHistory.map(d => d.cpu),
           s2Name: 'SYS_TEMP',
-          s2Data: telemetryHistory.map(d => d.temp),
+          s2Data: metricsHistory.map(d => d.temp),
         };
     }
   };
@@ -55,7 +71,7 @@ export function SensorGraphs({ telemetryHistory, deviceType }) {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: telemetryHistory.map(d => d.time),
+      data: metricsHistory.map(d => d.time),
       axisLine: { lineStyle: { color: 'rgba(6, 182, 212, 0.3)' } },
       axisLabel: { color: '#4b5563', fontSize: 10 },
       splitLine: { show: false }
@@ -122,6 +138,8 @@ export function SensorGraphs({ telemetryHistory, deviceType }) {
           option={option} 
           style={{ height: '100%', width: '100%' }} 
           opts={{ renderer: 'svg' }}
+          notMerge={true}
+          lazyUpdate={true}
         />
       </div>
     </div>

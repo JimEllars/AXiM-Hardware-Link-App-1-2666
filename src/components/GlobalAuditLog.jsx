@@ -33,6 +33,30 @@ export function GlobalAuditLog() {
       }
     };
     fetchAllLogs();
+
+    const channel = aximCoreClient.channel('global-audit-log-sync')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'global_audit_logs' },
+        (payload) => {
+          const newRecord = payload.new;
+          setLogs(prev => {
+            const newLog = {
+              id: newRecord.id,
+              type: newRecord.action_type || 'AUDIT',
+              msg: newRecord.description || `System audited by ${newRecord.actor_id}`,
+              ts: newRecord.created_at,
+              color: 'text-purple-500' // Distinct color for audit logs
+            };
+            return [newLog, ...prev].slice(0, 100);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, []);
 
   return (

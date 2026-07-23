@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { logIncident } from '../services/hardwareService';
+import { logIncident, dispatchTelemetryIngress } from '../services/hardwareService';
 import { aximCoreClient } from '../lib/supabaseClient';
 
 export function useTelemetryStream(deviceId) {
@@ -70,6 +70,14 @@ export function useTelemetryStream(deviceId) {
             activeAlerts.current.add('HIGH_TEMP');
           } else if (safeTemp <= 90) {
             activeAlerts.current.delete('HIGH_TEMP');
+          }
+
+          // Ingress Intercept: Check for anomaly breach
+          if ((safeTemp > 85 || safeCpu > 90) && !activeAlerts.current.has('INGRESS_DISPATCHED')) {
+            dispatchTelemetryIngress(deviceId, { cpu: safeCpu, temp: safeTemp, battery: safeBattery, signal: safeSignal, ping: safePing }).catch(console.error);
+            activeAlerts.current.add('INGRESS_DISPATCHED');
+          } else if (safeTemp <= 85 && safeCpu <= 90) {
+            activeAlerts.current.delete('INGRESS_DISPATCHED');
           }
 
           return {

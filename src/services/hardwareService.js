@@ -189,3 +189,15 @@ export async function getTelemetryHistory(deviceId, limit = 10) {
     timestamp: row.created_at
   }));
 }
+
+export const dispatchTelemetryIngress = async (deviceId, diagnosticFrame) => {
+  const payload = {
+    device_id: deviceId,
+    telemetry: diagnosticFrame,
+    timestamp: new Date().toISOString(),
+    source: 'AXiM_HARDWARE_LINK_HUD'
+  };
+  return await aximCoreClient.functions.invoke('telemetry-ingress', {
+    body: payload
+  });
+};
