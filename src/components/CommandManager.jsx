@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { getCommandHistory, sendCommand, removeCommand } from '../services/hardwareService';
+import { getCommandHistory, sendCommand, removeCommand, dispatchTelemetryIngress } from '../services/hardwareService';
 import { format } from 'date-fns';
 import { aximCoreClient } from '../lib/supabaseClient';
 
@@ -54,6 +54,7 @@ export function CommandManager({ deviceId }) {
     setExecuting(macro.id);
     try {
       await sendCommand(deviceId, macro.cmd);
+      await dispatchTelemetryIngress(deviceId, { event: 'COMMAND_DISPATCHED', command: macro.cmd });
       // Realtime subscription handles adding the command to state
     } catch (err) {
       alert("Macro injection failed.");

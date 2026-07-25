@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { logAudit } from '../services/pentestService';
-import { sendCommand } from '../services/hardwareService';
+import { sendCommand, dispatchTelemetryIngress } from '../services/hardwareService';
 import { aximCoreClient } from '../lib/supabaseClient';
 
 export function NetworkScanner({ deviceId }) {
@@ -13,13 +13,18 @@ export function NetworkScanner({ deviceId }) {
   useEffect(() => {
     // Prep the component to instantly inject actual results when a node returns target scanning logs
     const channel = aximCoreClient.channel(`public:security_audits:${deviceId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audits', filter: `device_id=eq.${deviceId}` }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audits', filter: `device_id=eq.${deviceId}` }, async (payload) => {
         if (payload && payload.new && payload.new.type === 'NET_SCAN_RESULT') {
            try {
               // Parse the result array and return the state back to 'IDLE'
               const scanResults = JSON.parse(payload.new.result);
               if (Array.isArray(scanResults)) {
                   setResults(scanResults);
+                  await dispatchTelemetryIngress(deviceId, {
+                    event: 'NETWORK_SCAN_COMPLETED',
+                    result_count: scanResults.length,
+                    timestamp: new Date().toISOString()
+                  });
               }
            } catch (e) {
               // silent catch
@@ -52,6 +57,12 @@ export function NetworkScanner({ deviceId }) {
       // Push actual scan command to hardware edge node
       await sendCommand(deviceId, 'SCAN_RF_SPECTRUM');
 
+      await dispatchTelemetryIngress(deviceId, {
+        event: 'NETWORK_SCAN_INITIATED',
+        status: 'SCANNING',
+        timestamp: new Date().toISOString()
+      });
+
       await logAudit(deviceId, {
         type: 'NET_SCAN',
         target: 'LOCAL_RF_SPACE',
@@ -62,6 +73,7 @@ export function NetworkScanner({ deviceId }) {
       // Keep scanning state true until a webhook/realtime event returns results
       // (This removes the fake data and correctly awaits real hardware interaction)
     } catch (err) {
+      console.error('Failed to dispatch scan command:', err);
       setScanning(false);
       setScanState('IDLE');
     }
