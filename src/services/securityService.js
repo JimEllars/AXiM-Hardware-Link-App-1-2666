@@ -7,7 +7,8 @@ export async function getDevicePolicy(deviceId) {
     .eq('device_id', deviceId)
     .single()
     .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
-    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
+    .setHeader('X-AXiM-Gateway-Trace', `axim-hud-${Date.now()}`)
+    .setHeader('CF-Ray', `axim-hud-${Date.now()}`);
 
   if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows found"
 
@@ -38,7 +39,8 @@ export async function updatePolicy(deviceId, updates) {
       updated_at: now
     }, { onConflict: 'device_id' })
     .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
-    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
+    .setHeader('X-AXiM-Gateway-Trace', `axim-hud-${Date.now()}`)
+    .setHeader('CF-Ray', `axim-hud-${Date.now()}`);
 
   if (error) throw error;
 }
@@ -49,7 +51,8 @@ export async function getFirewallRules(deviceId) {
     .select('*')
     .eq('device_id', deviceId)
     .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
-    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
+    .setHeader('X-AXiM-Gateway-Trace', `axim-hud-${Date.now()}`)
+    .setHeader('CF-Ray', `axim-hud-${Date.now()}`);
 
   if (error) throw error;
 
@@ -73,7 +76,8 @@ export async function addFirewallRule(deviceId, rule) {
       label: rule.label
     }])
     .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
-    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
+    .setHeader('X-AXiM-Gateway-Trace', `axim-hud-${Date.now()}`)
+    .setHeader('CF-Ray', `axim-hud-${Date.now()}`);
 
   if (error) throw error;
 }

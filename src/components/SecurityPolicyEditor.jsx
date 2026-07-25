@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getDevicePolicy, updatePolicy, getFirewallRules, addFirewallRule } from '../services/securityService';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function SecurityPolicyEditor({ deviceId }) {
   const [policy, setPolicy] = useState(null);
   const [rules, setRules] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -15,6 +17,23 @@ export function SecurityPolicyEditor({ deviceId }) {
       setRules(r);
     };
     fetchData();
+
+    const channel = aximCoreClient.channel('security-audits-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'security_audits', filter: `event_type=eq.POLICY_UPDATE` },
+        (payload) => {
+          // Refresh policy and show toast
+          fetchData();
+          setToast('SECURITY POLICY SYNCHRONIZED');
+          setTimeout(() => setToast(null), 3000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
   }, [deviceId]);
 
   const handleSave = async () => {
@@ -31,6 +50,11 @@ export function SecurityPolicyEditor({ deviceId }) {
         <h3 className="text-cyan-400 font-bold tracking-widest uppercase text-sm border-b border-cyan-500/30 pb-2 mb-4 flex items-center">
           <SafeIcon icon={FiIcons.FiLock} className="mr-2" /> NODE_HARDENING
         </h3>
+        {toast && (
+          <div className="mb-4 p-2 bg-green-500/20 border border-green-500 text-green-400 text-xs text-center font-bold animate-pulse">
+            {toast}
+          </div>
+        )}
         
         <div className="space-y-6">
           <div className="space-y-2">
