@@ -25,6 +25,7 @@ import { getFleet } from '../services/hardwareService';
 import { getOperatorIdentity } from '../lib/auth';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 
 function HardwareSimulatorWrapper({ deviceId }) {
   useHardwareSimulator(deviceId);
@@ -72,7 +73,9 @@ export function TelemetryHUDLayout() {
   return (
     <div className="relative w-screen h-screen bg-black overflow-hidden font-mono selection:bg-cyan-500/30">
       {!(activeDeviceType === 'ENVIRONMENTAL_SENSOR' || activeDeviceType === 'LOCAL_SERVER') && (
-        <WebRTCVideoLayer deviceId={activeDeviceId} />
+        <ErrorBoundary moduleName="WebRTCVideoLayer">
+          <WebRTCVideoLayer deviceId={activeDeviceId} />
+        </ErrorBoundary>
       )}
       <NotificationSystem />
 
@@ -136,7 +139,11 @@ export function TelemetryHUDLayout() {
               <div className="text-gray-500">|</div>
               <div className="text-cyan-400">{new Date().toLocaleTimeString()}</div>
             </div>
-            {activeTab === 'HUD' && <SensorGraphs telemetryHistory={telemetry.history} deviceType={activeDeviceType} />}
+            {activeTab === 'HUD' && (
+              <ErrorBoundary moduleName="SensorGraphs">
+                <SensorGraphs telemetryHistory={telemetry.history} deviceType={activeDeviceType} />
+              </ErrorBoundary>
+            )}
           </div>
         </div>
 
@@ -148,9 +155,17 @@ export function TelemetryHUDLayout() {
             {activeTab === 'SECURITY' && <SecurityPolicyEditor deviceId={activeDeviceId} />}
             {activeTab === 'OPS' && <MissionControl />}
             {activeTab === 'CONNECT' && <SystemConnectorHUD />}
-            {activeTab === 'TOPOLOGY' && <NetworkTopology />}
+            {activeTab === 'TOPOLOGY' && (
+              <ErrorBoundary moduleName="NetworkTopology">
+                <NetworkTopology />
+              </ErrorBoundary>
+            )}
             {activeTab === 'AUTO' && <AutomationManager />}
-            {activeTab === 'STREAM' && <GlobalAuditLog />}
+            {activeTab === 'STREAM' && (
+              <ErrorBoundary moduleName="GlobalAuditLog">
+                <GlobalAuditLog />
+              </ErrorBoundary>
+            )}
           </div>
         )}
 

@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { useAximEcosystem } from '../hooks/useAximEcosystem';
+import { dispatchTelemetryIngress } from '../services/hardwareService';
+import { aximCoreClient } from '../lib/supabaseClient';
 
 export function DiagnosticsPanel({ deviceId, telemetry }) {
   const ecosystem = useAximEcosystem(deviceId);
@@ -12,6 +14,42 @@ export function DiagnosticsPanel({ deviceId, telemetry }) {
     load: `${telemetry.cpuLoad.toFixed(1)}%`,
     core_temp: `${telemetry.temp.toFixed(1)}°C`,
     asguard_status: ecosystem.asguard.status
+  };
+
+  const [auditAlerts, setAuditAlerts] = useState([]);
+
+  useEffect(() => {
+    const channel = aximCoreClient.channel('diagnostic-security-audits')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'security_audits' },
+        (payload) => {
+          setAuditAlerts(prev => {
+            const updated = [payload.new, ...prev];
+            return updated.slice(0, 3);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
+    };
+  }, []);
+
+  const handleRunDiagnostics = async () => {
+    // Simulate a diagnostic test result
+    const testItem = { name: 'THERMAL_SENSOR_ARRAY', errorCode: 'ERR_THRM_042' };
+    const status = 'FAILED';
+
+    if (status === 'FAILED') {
+      await dispatchTelemetryIngress(deviceId, {
+        event: 'DIAGNOSTIC_FAILURE',
+        component: testItem.name,
+        diagnostic_code: testItem.errorCode,
+        timestamp: new Date().toISOString()
+      });
+    }
   };
 
   const getSubsystemStatus = (val, threshold) => val > threshold ? 'STRESSED' : 'NOMINAL';
@@ -56,6 +94,21 @@ export function DiagnosticsPanel({ deviceId, telemetry }) {
             );
           })}
         </div>
+      </div>
+
+      <div className="mt-4 pt-2 border-t border-cyan-500/10">
+        <button onClick={handleRunDiagnostics} className="w-full bg-cyan-900/50 hover:bg-cyan-800/80 text-cyan-400 border border-cyan-700/50 px-3 py-1.5 rounded text-xs font-bold tracking-wider transition-colors mb-2">
+          RUN SELF-TEST
+        </button>
+        {auditAlerts.length > 0 && (
+          <div className="space-y-1">
+            {auditAlerts.map(alert => (
+              <div key={alert.id} className="text-[9px] text-rose-400 font-mono animate-pulse bg-rose-900/20 px-1 py-0.5 rounded border border-rose-900/50">
+                [{alert.action_type || 'ALERT'}] {alert.description || 'Audit logged'}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

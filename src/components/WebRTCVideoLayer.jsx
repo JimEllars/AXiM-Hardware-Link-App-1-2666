@@ -43,10 +43,11 @@ export function WebRTCVideoLayer({ deviceId }) {
           if (anomaly_detected === true || isDamageKeyword) {
             const nowTime = Date.now();
             if (nowTime - lastScanDispatchTimestamp.current >= 60000) {
+              const base64Frame = canvas.toDataURL('image/png');
               dispatchTelemetryIngress(deviceId, {
                 alert_type: 'OPTICAL_DAMAGE_DETECTED',
                 details: result.analysis
-              }).catch(console.error);
+              }, base64Frame).catch(console.error);
               lastScanDispatchTimestamp.current = nowTime;
             }
           }

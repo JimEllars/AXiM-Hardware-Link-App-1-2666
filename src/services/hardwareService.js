@@ -229,11 +229,15 @@ export async function getTelemetryHistory(deviceId, limit = 10) {
   }));
 }
 
-export const dispatchTelemetryIngress = async (deviceId, diagnosticFrame) => {
+export const dispatchTelemetryIngress = async (deviceId, diagnosticFrame, frameSnapshot = null) => {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     console.warn('[NETWORK OFFLINE] Queuing telemetry ingress.');
     offlineTelemetryQueue.push({ type: 'telemetry', deviceId, payload: diagnosticFrame });
     return null;
+  }
+
+  if (frameSnapshot) {
+    diagnosticFrame.visual_snapshot = frameSnapshot;
   }
 
   const payload = {
