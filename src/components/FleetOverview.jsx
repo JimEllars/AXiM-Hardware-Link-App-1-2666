@@ -15,7 +15,7 @@ export function FleetOverview() {
         const incidents = await getIncidents(node.id, 5);
         const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
         const healthScore = Math.max(0, 100 - (criticalCount * 25));
-        return { ...node, healthScore };
+        return { ...node, healthScore, criticalCount };
       }));
       setNodes(nodesWithHealth);
     } catch (err) {
@@ -37,19 +37,19 @@ export function FleetOverview() {
           schema: 'public',
           table: 'hardware_registry'
         },
-        (payload) => {
-          setNodes(prevNodes => {
-            if (payload.eventType === 'INSERT') {
-              return [...prevNodes, { ...payload.new, healthScore: 100 }];
-            } else if (payload.eventType === 'UPDATE') {
-              return prevNodes.map(node =>
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+             const incidents = await getIncidents(payload.new.id, 5);
+             const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
+             const healthScore = Math.max(0, 100 - (criticalCount * 25));
+             setNodes(prevNodes => [...prevNodes, { ...payload.new, healthScore, criticalCount }]);
+          } else if (payload.eventType === 'UPDATE') {
+             setNodes(prevNodes => prevNodes.map(node =>
                 node.id === payload.new.id ? { ...node, ...payload.new } : node
-              );
-            } else if (payload.eventType === 'DELETE') {
-              return prevNodes.filter(node => node.id !== payload.old.id);
-            }
-            return prevNodes;
-          });
+             ));
+          } else if (payload.eventType === 'DELETE') {
+             setNodes(prevNodes => prevNodes.filter(node => node.id !== payload.old.id));
+          }
         }
       )
       .on(
@@ -68,7 +68,7 @@ export function FleetOverview() {
             const criticalCount = incidents.filter(i => i.severity === 'CRITICAL').length;
             const healthScore = Math.max(0, 100 - (criticalCount * 25));
             setNodes(prevNodes => prevNodes.map(node =>
-              node.id === deviceId ? { ...node, healthScore } : node
+              node.id === deviceId ? { ...node, healthScore, criticalCount } : node
             ));
           }
         }
@@ -121,18 +121,24 @@ export function FleetOverview() {
         ))}
       </div>
 
-      <div className="mt-8 grid grid-cols-3 gap-4 border-t border-cyan-500/10 pt-6">
+      <div className="mt-8 grid grid-cols-4 gap-4 border-t border-cyan-500/10 pt-6">
         <div className="text-center">
           <div className="text-[9px] text-gray-600 uppercase mb-1">Active_Nodes</div>
-          <div className="text-xl text-cyan-400 font-bold">{nodes.filter(n => n.status === 'ONLINE').length}</div>
+          <div className="text-xl text-cyan-400 font-bold transition-all duration-300">{nodes.length}</div>
         </div>
         <div className="text-center border-x border-cyan-500/10">
-          <div className="text-[9px] text-gray-600 uppercase mb-1">Total_Uptime</div>
-          <div className="text-xl text-cyan-400 font-bold">99.8%</div>
+          <div className="text-[9px] text-gray-600 uppercase mb-1">Nodes_Online</div>
+          <div className="text-xl text-green-500 font-bold transition-all duration-300">{nodes.filter(n => n.status === 'ONLINE').length}</div>
+        </div>
+        <div className="text-center border-r border-cyan-500/10">
+          <div className="text-[9px] text-gray-600 uppercase mb-1">Offline/Maint</div>
+          <div className="text-xl text-amber-500 font-bold transition-all duration-300">{nodes.filter(n => n.status === 'OFFLINE' || n.status === 'MAINTENANCE').length}</div>
         </div>
         <div className="text-center">
-          <div className="text-[9px] text-gray-600 uppercase mb-1">Unresolved_Incidents</div>
-          <div className="text-xl text-rose-500 font-bold">02</div>
+          <div className="text-[9px] text-gray-600 uppercase mb-1">Unresolved_Critical</div>
+          <div className="text-xl text-rose-500 font-bold transition-all duration-300">
+            {nodes.reduce((sum, n) => sum + (n.criticalCount || 0), 0)}
+          </div>
         </div>
       </div>
     </div>
