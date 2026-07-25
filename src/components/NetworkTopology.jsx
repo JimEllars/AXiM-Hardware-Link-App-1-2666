@@ -62,88 +62,19 @@ export function NetworkTopology() {
     };
     buildGraph();
 
-    const topologyChannel = aximCoreClient
-      .channel('topology_engine')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hardware_registry' }, (payload) => {
-        if (!payload || (!payload.new && !payload.old)) return;
-        setGraphData(prev => {
-          const newNodes = prev.nodes.map(n => {
-            if (n.id === payload.new.id) {
-              return {
-                ...n,
-                name: payload.new.name,
-                itemStyle: { color: payload.new.status === 'ONLINE' ? '#22c55e' : '#4b5563' }
-              };
-            }
-            return n;
-          });
-          return { ...prev, nodes: newNodes };
-        });
+    const channel = aximCoreClient
+      .channel('topology-fleet-sync')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'hardware_registry'
+      }, () => {
+        buildGraph(); // Re-render topology graph nodes with updated status colors
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hardware_registry' }, (payload) => {
-        if (!payload || (!payload.new && !payload.old)) return;
-        setGraphData(prev => {
-          const newNode = {
-            id: payload.new.id, name: payload.new.name, category: 1,
-            symbolSize: 30, itemStyle: { color: payload.new.status === 'ONLINE' ? '#22c55e' : '#4b5563' }
-          };
-          return { ...prev, nodes: [...prev.nodes, newNode] };
-        });
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hardware_registry' }, (payload) => {
-        if (!payload || (!payload.new && !payload.old)) return;
-        setGraphData(prev => ({
-          ...prev,
-          nodes: prev.nodes.filter(n => n.id !== payload.old.id)
-        }));
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'system_connectors' }, (payload) => {
-        if (!payload || (!payload.new && !payload.old)) return;
-        setGraphData(prev => {
-          const newNode = {
-            id: payload.new.id, name: payload.new.name, category: 0,
-            symbolSize: 40, itemStyle: { color: '#06b6d4' }
-          };
-          const newLink = {
-            source: payload.new.id,
-            target: 'axim_core_cluster',
-            lineStyle: { width: 3, curveness: 0.1, color: '#8b5cf6', opacity: 0.6 }
-          };
-          return { nodes: [...prev.nodes, newNode], links: [...prev.links, newLink] };
-        });
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'system_connectors' }, (payload) => {
-        if (!payload || (!payload.new && !payload.old)) return;
-        setGraphData(prev => ({
-          nodes: prev.nodes.filter(n => n.id !== payload.old.id),
-          links: prev.links.filter(l => l.source !== payload.old.id && l.target !== payload.old.id)
-        }));
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'system_bridges' }, (payload) => {
-        if (!payload || (!payload.new && !payload.old)) return;
-        setGraphData(prev => {
-          const newLink = {
-            source: payload.new.connector_id,
-            target: payload.new.device_id,
-            lineStyle: { width: 2, curveness: 0.2, color: '#06b6d4', opacity: 0.4 }
-          };
-          return { ...prev, links: [...prev.links, newLink] };
-        });
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'system_bridges' }, (payload) => {
-        if (!payload || (!payload.new && !payload.old)) return;
-        setGraphData(prev => ({
-          ...prev,
-          links: prev.links.filter(l => !(l.source === payload.old.connector_id && l.target === payload.old.device_id))
-        }));
-      })
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          void err;
-        }
-      });
-return () => {
-      aximCoreClient.removeChannel(topologyChannel);
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(channel);
     };
   }, []);
 
