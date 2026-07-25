@@ -10,11 +10,13 @@ import { aximCoreClient } from '../lib/supabaseClient';
 export function useHardwareVideoStream(deviceId) {
   const videoRef = useRef(null);
   const [status, setStatus] = useState('connecting');
+  const [isLowBandwidthFailover, setIsLowBandwidthFailover] = useState(false);
   const peerConnectionRef = useRef(null);
   const channelRef = useRef(null);
 
   useEffect(() => {
     let fallbackStream = null;
+    let packetLossTimeout = null;
 
     const setupWebRTC = async () => {
       setStatus('connecting');
@@ -44,11 +46,37 @@ export function useHardwareVideoStream(deviceId) {
         }
       };
 
+      // Handle connection state changes
+      const handleConnectionStateChange = () => {
+        const state = peerConnection.connectionState;
+        if (state === 'failed' || state === 'disconnected') {
+          setIsLowBandwidthFailover(true);
+        }
+      };
+
+      const handleIceConnectionStateChange = () => {
+        const state = peerConnection.iceConnectionState;
+        if (state === 'failed' || state === 'disconnected') {
+          setIsLowBandwidthFailover(true);
+        }
+      };
+
+      peerConnection.addEventListener('connectionstatechange', handleConnectionStateChange);
+      peerConnection.addEventListener('iceconnectionstatechange', handleIceConnectionStateChange);
+
+      // Simple packet loss detection mock using a timeout if no track arrives
+      packetLossTimeout = setTimeout(() => {
+        if (peerConnection.connectionState !== 'connected') {
+          setIsLowBandwidthFailover(true);
+        }
+      }, 5000);
+
       // Handle incoming video stream from hardware node
       peerConnection.ontrack = (event) => {
         if (videoRef.current && event.streams[0]) {
           videoRef.current.srcObject = event.streams[0];
           setStatus('connected');
+          clearTimeout(packetLossTimeout);
         }
       };
 
@@ -124,6 +152,8 @@ export function useHardwareVideoStream(deviceId) {
     setupWebRTC();
 
     return () => {
+      if (packetLossTimeout) clearTimeout(packetLossTimeout);
+
       // 1. Explicitly stop all media tracks
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject;
@@ -150,5 +180,5 @@ export function useHardwareVideoStream(deviceId) {
     };
   }, [deviceId]);
 
-  return { videoRef, status };
+  return { videoRef, status, isLowBandwidthFailover };
 }

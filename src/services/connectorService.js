@@ -5,7 +5,8 @@ export async function getConnectors() {
     .from('system_connectors')
     .select('*')
     .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
-    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
+    .setHeader('CF-Ray', `axim-hud-cache-\${Date.now()}`)
+    .setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60');
 
   if (error) throw error;
 
@@ -45,7 +46,8 @@ export async function getBridges() {
     .from('system_bridges')
     .select('*')
     .setHeader('X-AXiM-Internal-Auth', import.meta.env.VITE_AXIM_INTERNAL_KEY || '')
-    .setHeader('CF-Ray', `axim-hud-\${Date.now()}`);
+    .setHeader('CF-Ray', `axim-hud-cache-\${Date.now()}`)
+    .setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60');
 
   if (error) throw error;
 
