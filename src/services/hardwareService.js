@@ -243,16 +243,45 @@ export const dispatchTelemetryIngress = async (deviceId, diagnosticFrame) => {
     source: 'AXiM_HARDWARE_LINK_HUD'
   };
 
-  try {
-    return await aximCoreClient.functions.invoke('telemetry-ingress', {
-      body: payload
-    });
-  } catch (error) {
-    console.warn('[NETWORK ERROR] Queuing telemetry ingress.', error);
-    offlineTelemetryQueue.push({ type: 'telemetry', deviceId, payload: diagnosticFrame });
-    return null;
+  const maxRetries = 3;
+  const backoffDelays = [500, 1500, 3500];
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-AXiM-Internal-Auth': import.meta.env.VITE_AXIM_INTERNAL_KEY || '',
+        'X-AXiM-Gateway-Trace': `trace-${deviceId}-${Date.now()}`
+      };
+
+      const res = await aximCoreClient.functions.invoke('telemetry-ingress', {
+        body: payload,
+        headers: headers
+      });
+
+      if (res.error) {
+        throw res.error;
+      }
+
+      return res;
+    } catch (error) {
+      const isGatewayError = error && error.context && (error.context.status === 503 || error.context.status === 504);
+      if (attempt < maxRetries && isGatewayError) {
+        console.warn(`[GATEWAY ERROR] Retry ${attempt + 1}/${maxRetries} after ${backoffDelays[attempt]}ms`, error);
+        await new Promise(resolve => setTimeout(resolve, backoffDelays[attempt]));
+      } else if (attempt < maxRetries) {
+         console.warn(`[NETWORK ERROR] Retry ${attempt + 1}/${maxRetries} after ${backoffDelays[attempt]}ms`, error);
+         await new Promise(resolve => setTimeout(resolve, backoffDelays[attempt]));
+      } else {
+        console.warn('[NETWORK ERROR] Max retries reached. Queuing telemetry ingress.', error);
+        offlineTelemetryQueue.push({ type: 'telemetry', deviceId, payload: diagnosticFrame });
+        return null;
+      }
+    }
   }
 };
+
+
 
 export async function inspectVideoFrameWithWorkersAi(deviceId, imageBlob) {
   try {
