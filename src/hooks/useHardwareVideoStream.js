@@ -51,6 +51,8 @@ export function useHardwareVideoStream(deviceId) {
         const state = peerConnection.connectionState;
         if (state === 'failed' || state === 'disconnected') {
           setIsLowBandwidthFailover(true);
+        } else if (state === 'connected') {
+          setIsLowBandwidthFailover(false);
         }
       };
 
@@ -58,6 +60,8 @@ export function useHardwareVideoStream(deviceId) {
         const state = peerConnection.iceConnectionState;
         if (state === 'failed' || state === 'disconnected') {
           setIsLowBandwidthFailover(true);
+        } else if (state === 'connected') {
+          setIsLowBandwidthFailover(false);
         }
       };
 
@@ -179,6 +183,43 @@ export function useHardwareVideoStream(deviceId) {
       }
     };
   }, [deviceId]);
+
+
+  useEffect(() => {
+    let reconnectInterval = null;
+
+    if (isLowBandwidthFailover) {
+      reconnectInterval = setInterval(async () => {
+        try {
+          const pc = peerConnectionRef.current;
+          const channel = channelRef.current;
+
+          if (pc && channel && pc.connectionState !== 'connected') {
+            console.log('Attempting WebRTC renegotiation...');
+            // Attempt offer renegotiation with iceRestart
+            const offer = await pc.createOffer({ iceRestart: true });
+            await pc.setLocalDescription(offer);
+
+            channel.send({
+              type: 'broadcast',
+              event: 'webrtc_offer',
+              payload: { offer }
+            });
+          } else if (pc && pc.connectionState === 'connected') {
+            setIsLowBandwidthFailover(false);
+          }
+        } catch (err) {
+          console.error('Renegotiation failed', err);
+        }
+      }, 15000);
+    }
+
+    return () => {
+      if (reconnectInterval) {
+        clearInterval(reconnectInterval);
+      }
+    };
+  }, [isLowBandwidthFailover]);
 
   return { videoRef, status, isLowBandwidthFailover };
 }

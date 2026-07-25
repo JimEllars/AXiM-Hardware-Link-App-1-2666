@@ -1,7 +1,41 @@
 import { aximCoreClient } from '../lib/supabaseClient';
 
+
+let offlineTelemetryQueue = [];
+
+// Listen for network reconnection to flush the queue
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', async () => {
+    if (offlineTelemetryQueue.length > 0) {
+      console.log(`[NETWORK ONLINE] Flushing ${offlineTelemetryQueue.length} telemetry payloads from queue...`);
+      const queueCopy = [...offlineTelemetryQueue];
+      offlineTelemetryQueue = []; // Clear the queue before flushing
+
+      for (const item of queueCopy) {
+        try {
+          if (item.type === 'telemetry') {
+             await dispatchTelemetryIngress(item.deviceId, item.payload);
+          } else if (item.type === 'command') {
+             await sendCommand(item.deviceId, item.payload);
+          }
+        } catch (error) {
+           console.error('Failed to flush item, re-queuing:', error);
+           offlineTelemetryQueue.push(item);
+        }
+      }
+    }
+  });
+}
+
 export async function sendCommand(deviceId, command) {
-  const { data, error } = await aximCoreClient
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    console.warn('[NETWORK OFFLINE] Queuing command dispatch.');
+    offlineTelemetryQueue.push({ type: 'command', deviceId, payload: command });
+    return null;
+  }
+
+  try {
+    const { data, error } = await aximCoreClient
     .from('command_queue')
     .insert([{
       device_id: deviceId,
@@ -11,8 +45,13 @@ export async function sendCommand(deviceId, command) {
     .select('id')
     .single();
 
-  if (error) throw error;
-  return data.id;
+    if (error) throw error;
+    return data.id;
+  } catch (error) {
+    console.warn('[NETWORK ERROR] Queuing command dispatch.', error);
+    offlineTelemetryQueue.push({ type: 'command', deviceId, payload: command });
+    return null;
+  }
 }
 
 export async function sendBatchCommands(deviceIds, commandString) {
@@ -191,15 +230,28 @@ export async function getTelemetryHistory(deviceId, limit = 10) {
 }
 
 export const dispatchTelemetryIngress = async (deviceId, diagnosticFrame) => {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    console.warn('[NETWORK OFFLINE] Queuing telemetry ingress.');
+    offlineTelemetryQueue.push({ type: 'telemetry', deviceId, payload: diagnosticFrame });
+    return null;
+  }
+
   const payload = {
     device_id: deviceId,
     telemetry: diagnosticFrame,
     timestamp: new Date().toISOString(),
     source: 'AXiM_HARDWARE_LINK_HUD'
   };
-  return await aximCoreClient.functions.invoke('telemetry-ingress', {
-    body: payload
-  });
+
+  try {
+    return await aximCoreClient.functions.invoke('telemetry-ingress', {
+      body: payload
+    });
+  } catch (error) {
+    console.warn('[NETWORK ERROR] Queuing telemetry ingress.', error);
+    offlineTelemetryQueue.push({ type: 'telemetry', deviceId, payload: diagnosticFrame });
+    return null;
+  }
 };
 
 export async function inspectVideoFrameWithWorkersAi(deviceId, imageBlob) {
