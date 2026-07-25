@@ -4,9 +4,23 @@ import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { inspectVideoFrameWithWorkersAi, dispatchTelemetryIngress } from '../services/hardwareService';
 
+import { useEffect, useState } from 'react';
+
 export function WebRTCVideoLayer({ deviceId }) {
-  const { videoRef, status } = useHardwareVideoStream(deviceId);
+  const { videoRef, status, isLowBandwidthFailover } = useHardwareVideoStream(deviceId);
   const lastScanDispatchTimestamp = useRef(0);
+  const [snapshotUrl, setSnapshotUrl] = useState('');
+
+  useEffect(() => {
+    let intervalId;
+    if (isLowBandwidthFailover) {
+      intervalId = setInterval(() => {
+        const workerUrl = import.meta.env.VITE_WORKER_INGRESS_URL || 'https://api.axim.us.com';
+        setSnapshotUrl(`${workerUrl}/v1/hardware/${deviceId}/latest-frame?t=${Date.now()}`);
+      }, 1000);
+    }
+    return () => clearInterval(intervalId);
+  }, [isLowBandwidthFailover, deviceId]);
 
   const handleScan = async () => {
     if (!videoRef.current) return;
@@ -45,13 +59,21 @@ export function WebRTCVideoLayer({ deviceId }) {
   return (
     <div className="absolute inset-0 z-0 bg-gray-900 flex items-center justify-center overflow-hidden">
       {/* Video Element */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-screen"
-      />
+      {!isLowBandwidthFailover ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-screen"
+        />
+      ) : (
+        <img
+          src={snapshotUrl}
+          alt="Failover frame"
+          className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-screen"
+        />
+      )}
 
       {/* Aesthetic Overlays */}
       <div className="absolute inset-0 cyber-scanlines z-10 opacity-30"></div>
@@ -78,12 +100,19 @@ export function WebRTCVideoLayer({ deviceId }) {
         </div>
       )}
       
-      {status === 'connected' && (
+      {(status === 'connected' || isLowBandwidthFailover) && (
         <>
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center space-x-2 bg-rose-500/20 px-3 py-1 rounded border border-rose-500/50">
-            <div className="w-2 h-2 rounded-full bg-rose-500 blinking-dot"></div>
-            <span className="text-rose-500 text-xs font-bold tracking-widest">LIVE_FEED</span>
-          </div>
+          {isLowBandwidthFailover ? (
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center space-x-2 bg-amber-500/20 px-3 py-1 rounded border border-amber-500/50">
+              <div className="w-2 h-2 rounded-full bg-amber-500 blinking-dot"></div>
+              <span className="text-amber-500 text-xs font-bold tracking-widest">FAILOVER: LOW-BANDWIDTH EDGE SNAPSHOT (1 FPS)</span>
+            </div>
+          ) : (
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center space-x-2 bg-rose-500/20 px-3 py-1 rounded border border-rose-500/50">
+              <div className="w-2 h-2 rounded-full bg-rose-500 blinking-dot"></div>
+              <span className="text-rose-500 text-xs font-bold tracking-widest">LIVE_FEED</span>
+            </div>
+          )}
 
           <div className="absolute top-4 right-4 z-20">
             <div className="text-[9px] text-cyan-400 font-mono flex items-center gap-1.5 bg-cyan-950/60 border border-cyan-900/80 px-2 py-1 rounded backdrop-blur-md mb-2">
