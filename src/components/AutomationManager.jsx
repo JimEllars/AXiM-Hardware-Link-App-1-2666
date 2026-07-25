@@ -1,14 +1,72 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { getRules, addRule, toggleRule } from '../services/automationService';
+import { aximCoreClient } from '../lib/supabaseClient';
+import { sendBatchCommands, dispatchTelemetryIngress } from '../services/hardwareService';
 
 export function AutomationManager() {
   const [rules, setRules] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [newRule, setNewRule] = useState({ name: '', triggerType: 'TEMP_HIGH', threshold: '90', action: 'REBOOT' });
 
-  useEffect(() => { loadRules(); }, []);
+  const rulesRef = useRef(rules);
+  useEffect(() => {
+    rulesRef.current = rules;
+  }, [rules]);
+
+  useEffect(() => {
+    loadRules();
+
+    const incidentSub = aximCoreClient.channel('automation-incident-stream')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incident_reports' }, async (payload) => {
+        const incident = payload.new;
+        const activeRules = rulesRef.current.filter(r => r.status === 'ACTIVE');
+
+        for (const rule of activeRules) {
+          if (
+            (rule.triggerType === 'SECURITY_BREACH' && incident.type === 'UNAUTHORIZED_CMD') ||
+            (rule.triggerType === 'TEMP_HIGH' && incident.severity === 'CRITICAL') // Example mapping
+          ) {
+            console.log(`[AUTOMATION] Rule ${rule.name} triggered by incident ${incident.id}`);
+            if (incident.device_id) {
+               await sendBatchCommands([incident.device_id], rule.action);
+               await dispatchTelemetryIngress(incident.device_id, { event: 'AUTOMATION_RULE_EXECUTED', rule_id: rule.id });
+            }
+          }
+        }
+      })
+      .subscribe();
+
+    const telemetrySub = aximCoreClient.channel('automation-telemetry-stream')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_stream' }, async (payload) => {
+        const telemetry = payload.new;
+        const activeRules = rulesRef.current.filter(r => r.status === 'ACTIVE');
+
+        for (const rule of activeRules) {
+          if (rule.triggerType === 'TEMP_HIGH' && parseFloat(telemetry.temp) > parseFloat(rule.threshold)) {
+             console.log(`[AUTOMATION] Rule ${rule.name} triggered by telemetry temp ${telemetry.temp}`);
+             if (telemetry.device_id) {
+                await sendBatchCommands([telemetry.device_id], rule.action);
+                await dispatchTelemetryIngress(telemetry.device_id, { event: 'AUTOMATION_RULE_EXECUTED', rule_id: rule.id });
+             }
+          }
+          if (rule.triggerType === 'BATT_LOW' && parseFloat(telemetry.battery) < parseFloat(rule.threshold)) {
+             console.log(`[AUTOMATION] Rule ${rule.name} triggered by telemetry batt ${telemetry.battery}`);
+             if (telemetry.device_id) {
+                await sendBatchCommands([telemetry.device_id], rule.action);
+                await dispatchTelemetryIngress(telemetry.device_id, { event: 'AUTOMATION_RULE_EXECUTED', rule_id: rule.id });
+             }
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      aximCoreClient.removeChannel(incidentSub);
+      aximCoreClient.removeChannel(telemetrySub);
+    };
+  }, []);
 
   const loadRules = async () => {
     const data = await getRules();
